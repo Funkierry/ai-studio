@@ -227,7 +227,25 @@ td.num{white-space:nowrap}
 .cand h4{margin:0;font-size:15px;display:flex;align-items:center;gap:6px}
 .cand p{font-size:12px;color:var(--muted)}
 .cand .btn{margin-top:auto}
-.cand input{background:var(--bg);border:2px solid var(--line);color:var(--text);padding:4px 8px;font:inherit;font-size:13px;width:100%}
+.cand input,.cand textarea{background:var(--bg);border:2px solid var(--line);color:var(--text);padding:4px 8px;font:inherit;font-size:13px;width:100%}
+.order .tags{display:flex;flex-wrap:wrap;gap:4px}
+.order .tags .pill{color:var(--muted)}
+.order .tags .pill.urgent,.order.urgent h3{color:var(--bad)}
+.order.urgent{border-color:var(--bad)}
+.order-form{display:flex;flex-direction:column;gap:10px}
+.field-row{display:flex;gap:10px;flex-wrap:wrap}
+.field-row .field{flex:0 1 auto}
+.field-row .field.grow{flex:1 1 200px}
+.field select{background:var(--bg);border:2px solid var(--line);color:var(--text);padding:6px 8px;font:inherit;font-size:13px}
+.order-form .chk{display:flex;gap:8px;align-items:center;font-size:13px}
+.plan-text{white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);padding:8px;font:inherit;font-size:13px;max-height:260px;overflow:auto;margin:0}
+.portrait{image-rendering:pixelated;image-rendering:crisp-edges;display:block;background:var(--bg);border:2px solid var(--line)}
+.pslot{flex:none;display:block}
+.cand h4{gap:10px}
+.cand h4 small{display:block;font-size:12px;font-weight:400;color:var(--muted)}
+.persona{display:flex;flex-direction:column;gap:4px;font-size:13px}
+.persona p{color:var(--text)}
+.persona textarea{background:var(--bg);border:2px solid var(--line);color:var(--text);padding:6px 8px;font:inherit;font-size:13px;width:100%}
 .toasts{position:fixed;z-index:70;left:50%;bottom:max(16px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;align-items:center;width:min(520px,calc(100% - 32px));pointer-events:none}
 .toast{background:var(--panel);border:2px solid var(--line);padding:7px 12px;font-size:13px;box-shadow:3px 3px 0 rgba(0,0,0,.4)}
 .toast.ok{border-color:var(--ok)}
@@ -335,13 +353,9 @@ a.opt{color:var(--info);text-decoration:none}
     <section class="board px" aria-labelledby="ordersTitle">
       <div class="board-head">
         <h2 id="ordersTitle">订单</h2>
-        <p>拖到<b>员工</b>身上：TA 单独负责，卡住会找同事帮忙。拖到<b>工位区空地</b>：两人分工，互相审查。拖进<b>会议室</b>：两人先讨论再定稿。点一下订单也能直接分配。</p>
-        <button class="btn" id="newOrderBtn">新订单</button>
+        <p>拖到<b>员工</b>身上：TA 单独负责。拖到<b>工位区空地</b>：两人分工、互相审查。拖进<b>会议室</b>：两人先讨论再定稿。点一下订单可以分配或编辑要求。</p>
+        <button class="btn primary" id="newOrderBtn">新订单</button>
       </div>
-      <form class="new-order" id="newOrderForm" hidden>
-        <input id="newOrderInput" type="text" maxlength="40" placeholder="写一个话题，比如：下周团建去哪" aria-label="新订单话题">
-        <button class="btn primary" type="submit">放上任务板</button>
-      </form>
       <div class="orders" id="orders"></div>
     </section>
   </section>
@@ -408,7 +422,7 @@ const API={on:false,buf:{activity:[],ledger:[]},empDirty:false,
 setInterval(()=>API.flush(),1500);
 function empSnapshot(e){
   return {id:e.id,name:e.name,model:e.model,level:e.level,xp:e.xp,speed:e.speed,memory:e.memory,stamina:Math.round(e.stamina),spent:+e.spent.toFixed(4),
-    prefs:e.prefs,bond:e.bond,profile:{type:e.type,shirt:e.shirt,hair:e.hair,skin:e.skin,traits:e.traits,price:e.price,needs:e.needs||null,pitch:e.pitch}};
+    prefs:e.prefs,bond:e.bond,profile:{type:e.type,variant:e.variant,persona:e.persona||'',shirt:e.shirt,hair:e.hair,skin:e.skin,traits:e.traits,price:e.price,needs:e.needs||null,pitch:e.pitch}};
 }
 // someone writing a deliverable or standing at the door can't take new work
 const busy=e=>!!(e.job||e.writing||e.waiting);
@@ -424,12 +438,14 @@ function modelStatus(type){
   if(!MODELS) return '演示模式：不调用模型';
   if(MODELS.fake) return '模型：测试替身';
   const p=MODELS.providers[MODELS.types[type]];
-  return p?`模型：${p.model}（${p.hint}）`:'还没接入真实模型，交付物用模板';
+  return p?`${p.configured?'由':'应由'} ${p.name} 干活（${p.hint}）`:'还没接入真实模型，交付物用模板';
 }
 function chargeReal(e,cny){state.funds-=cny;e.spent+=cny;state.stats.spent+=cny;API.empDirty=true;}
-const orderRecord=(t,source)=>({id:t.id,title:t.title,brief:t.brief,est:t.est,task_key:TASKS.includes(t)?t.id:null,source});
+const orderRecord=(t,source)=>({id:t.id,title:t.title,brief:t.brief,est:t.est,task_key:TASKS.includes(t)?t.id:null,source,spec:t.spec||null});
+// what the boss asked for in an order; preset orders only have their one-line brief
+const specOf=t=>({detail:'',deliverable:{kind:'doc',name:''},criteria:[],refs:'',priority:'normal',planFirst:false,...(t.spec||{detail:t.brief})});
 function logArtifacts(e,arts){
-  const fmt=a=>({llm:`用 ${a.model} 写完：输入 ${a.input_tokens} / 输出 ${a.output_tokens} token${a.cny!=null?`，约 ¥${a.cny.toFixed(2)}`:''}，用时 ${Math.round(a.ms/1000)} 秒`,
+  const fmt=a=>({llm:`用 ${a.model} 写完：${a.output_tokens?`输入 ${a.input_tokens} / 输出 ${a.output_tokens}`:`共 ${a.input_tokens}`} token${a.cny!=null?`，约 ¥${a.cny.toFixed(2)}`:a.plan_usd!=null?`，走你的订阅额度（折合 API 价约 $${a.plan_usd.toFixed(2)}）`:'，走你的账号额度'}，用时 ${Math.round(a.ms/1000)} 秒`,
     fallback:`模型没写成，改用模板：${a.reason}`,db_error:`业务数据库没建成：${a.reason}`,doc:`文档存入文档库：${a.path}`,commit:`提交 ${a.hash} 到代码库 ${a.repo} 的 ${a.branch} 分支${a.files?`（${a.files} 个文件）`:''}`,
     pr:`发起合并请求 #${a.id}「${a.title}」，审查人：${a.reviewer}`,merge:`合并请求 #${a.pr}「${a.title}」已合并到 main（${a.hash}）`,
     conflict:`合并请求 #${a.pr} 有冲突，需要处理`,test:`跑了自动化测试：通过 ${a.pass} 项，失败 ${a.fail} 项`,db:`建立业务数据库：${a.name}`,tag:`打上发布标签 ${a.name}`})[a.type];
@@ -456,18 +472,52 @@ function route(a,b){return [...a.exit,{x:a.cx,y:CY},{x:b.cx,y:CY},...[...b.exit]
 
 /* ---------- staff ---------- */
 // kinds of AI you can hire; every hire of a kind is a separate person (own name, preferences, experience) on that kind's model
+// Looks follow the AI-girl characters popular on the Chinese internet (fan creations, not official mascots):
+// DeepSeek娘 the blue-haired whale maid, Claude娘 in orange with a sunflower clip and a white dress, GPT娘 the silver-haired dragon lady.
+// Gemini and Codex have no settled fan design yet, so theirs are drawn from their logos.
+// look: hair / eyes / skin and a hairdo; outfits: one per hire, so several people of a kind are told apart by clothes.
 const TYPES={
-  claude:{model:'Claude',names:['克劳德','克莱尔','柯蓝','可乐'],traits:['严谨','爱写注释','擅长长文档'],speed:3,memory:5,price:0.12,pitch:'先想清楚再动手。',
-    looks:[['#d9895c','#3a2a2a','#f0c9a0'],['#c96f8a','#5a3a2a','#e7b48c'],['#e0a050','#22232b','#f3d1ad']]},
-  gpt:{model:'GPT',names:['阿 G','小 G','吉皮','阿特'],traits:['手快','点子多','偶尔粗心'],speed:4,memory:4,price:0.10,pitch:'给我个方向，马上出稿。',
-    looks:[['#5fae94','#22232b','#e7b48c'],['#4f9ab0','#3a2a2a','#f0c9a0'],['#7fbf6a','#5a3a2a','#d9a27a']]},
-  deepseek:{model:'DeepSeek',names:['阿深','深深','小深','深蓝'],traits:['便宜','擅长代码和数学','话少'],speed:3,memory:3,price:0.03,pitch:'工资低，活不少干。',
-    looks:[['#6b8fd6','#1f2230','#f3d1ad'],['#5a6fc0','#3a2a2a','#e7b48c'],['#7aa6e8','#22232b','#d9a27a']]},
-  gemini:{model:'Gemini',names:['双子','小双','星河'],traits:['读得多','擅长整理资料','爱列表格'],speed:4,memory:5,price:0.08,pitch:'资料再长也能读完。',
-    looks:[['#b99ae0','#5a3a2a','#d9a27a'],['#a07ad0','#22232b','#f0c9a0']]},
-  codex:{model:'Codex（本地）',names:['小码','码哥'],traits:['能改文件','能跑测试','只在机房干活'],speed:3,memory:4,price:0.10,needs:'server',pitch:'直接在你电脑上改代码。',
-    looks:[['#d8b84e','#2b2b2b','#eec29a']]},
+  claude:{model:'Claude',nick:'Claude娘',names:['克劳德','克莱尔','柯蓝','小葵'],traits:['严谨认真','理工女','爱写长文档','有原则'],speed:3,memory:5,price:0.12,
+    pitch:'先把需求想清楚，我再动笔。',
+    look:{hair:'#f0893a',hairShade:'#c4621e',hairLight:'#ffb072',eyes:'#e0701e',skin:'#f8dcc4',style:'twintail',acc:['sunflower']},
+    outfits:[{dress:'#fbf7f0',trim:'#f0893a',sash:true,legs:'#fbf7f0'},{dress:'#f0893a',trim:'#fbf7f0',collar:'#fbf7f0',legs:'#3a2a2a'},{dress:'#2b2838',trim:'#f0893a',apron:true,legs:'#2b2838'}]},
+  gpt:{model:'GPT',nick:'GPT娘',names:['阿 G','小 G','吉皮','白龙'],traits:['精明强干','大姐大','雷厉风行','偶尔自信过头'],speed:4,memory:4,price:0.10,
+    pitch:'交给我，今天就能出稿。',
+    look:{hair:'#eceef6',hairShade:'#b9bccf',hairLight:'#ffffff',eyes:'#9a62d8',skin:'#f8e0cc',style:'long',acc:['horns','wings','dragonTail']},
+    outfits:[{dress:'#ffffff',trim:'#d6ae46',gold:true,legs:'#ffffff'},{dress:'#2a2836',trim:'#d6ae46',collar:'#ffffff',legs:'#2a2836'},{dress:'#e9e4ff',trim:'#9a62d8',legs:'#ffffff'}]},
+  // 鲸鱼娘 after the reference sheets in github.com/Neko3000/deepseek-whalechan (character by ZipZipPipe & 上善无形):
+  // long wavy hair from mid blue to cyan tips, a forward cowlick, whale-fin ears, maid headdress and blue bows,
+  // deep-sea navy maid dress with gold lace, white apron with a little whale, white tights, a big navy whale tail
+  deepseek:{model:'DeepSeek',nick:'DeepSeek娘',names:['阿深','深深','鲸鲸','小蓝'],traits:['元气可爱','饭量无底','有点傲娇','没电就摸鱼'],speed:3,memory:3,price:0.03,
+    pitch:'先给我一碗白饭，推理马上开始！',
+    look:{hair:'#2f5fd0',hairShade:'#21459e',hairLight:'#6f9ff2',hairTip:'#45b4f0',eyes:'#2a86f0',skin:'#fbe3d3',style:'long',
+      tail:'#1b2a5c',tailBelly:'#8a97bd',acc:['finEars','ahoge','maidCap','bows','whaleTail']},
+    outfits:[{dress:'#1b2a5c',trim:'#c99a3c',maid:true,legs:'#f4f4f8',shoes:'#1b2a5c'},
+      {dress:'#1b2a5c',trim:'#c99a3c',collar:'#ffffff',legs:'#f4f4f8',shoes:'#1b2a5c'},
+      {dress:'#9fd0f5',trim:'#ffffff',collar:'#ffffff',legs:'#9fd0f5',shoes:'#ffffff'}]},
+  gemini:{model:'Gemini',nick:'Gemini娘',names:['双子','小双','星河'],traits:['博览群书','爱列表格','一心二用'],speed:4,memory:5,price:0.08,
+    pitch:'资料再长，我也能一口气读完。',
+    look:{hair:'#5b8def',hair2:'#a273e6',hairShade:'#3d64c0',hairLight:'#b4cdff',eyes:'#7a5af0',skin:'#f6dccb',style:'buns',acc:['star']},
+    outfits:[{dress:'#2b2f5a',trim:'#ffd76a',collar:'#ffd76a',legs:'#2b2f5a'},{dress:'#ffffff',trim:'#7a5af0',sash:true,legs:'#2b2f5a'}]},
+  codex:{model:'Codex（本地）',nick:'Codex娘',names:['小码','码码'],traits:['能改文件','能跑测试','机房常驻','话少手快'],speed:3,memory:4,price:0.10,needs:'server',
+    pitch:'需求给我，代码直接落到你电脑上。',
+    look:{hair:'#2e2e3a',hairShade:'#1c1c26',hairLight:'#5a5a70',eyes:'#36c97a',skin:'#f4d6bf',style:'short',acc:['glasses','smallHorns']},
+    outfits:[{dress:'#3a3f4b',trim:'#36c97a',hood:true,legs:'#2b2838'}]},
 };
+// kinds added in models.json get a simple look in their own colour
+const PALETTE=['#c47a5a','#5a9a8a','#9a7ac0','#c0a050'];
+const shade=(hex,f)=>'#'+[1,3,5].map(i=>Math.max(0,Math.min(255,Math.round(parseInt(hex.slice(i,i+2),16)*f)))).map(v=>v.toString(16).padStart(2,'0')).join('');
+function applyCustomTypes(){
+  (MODELS?.custom_types||[]).forEach((t,i)=>{
+    if(TYPES[t.type]) return;
+    const c=PALETTE[i%PALETTE.length];
+    TYPES[t.type]={model:t.label,nick:t.label,names:t.names.length?t.names:[t.label],traits:t.traits.length?t.traits:['新同事'],speed:3,memory:4,price:0.05,
+      pitch:t.pitch||`我用的是${t.label}。`,
+      look:{hair:c,hairShade:shade(c,.75),hairLight:shade(c,1.3),eyes:shade(c,.6),skin:'#f6d9c4',style:'long',acc:[]},
+      outfits:[{dress:shade(c,.55),trim:'#ffffff',collar:'#ffffff',legs:'#2b2838'}]};
+  });
+  if(MODELS?.config_error) toast(MODELS.config_error,'warn');
+}
 function nextName(type){
   const used=new Set(state.emps.map(e=>e.name)),t=TYPES[type];
   return t.names.find(n=>!used.has(n))||`${t.names[0]} ${state.emps.filter(e=>e.type===type).length+1}号`;
@@ -669,10 +719,12 @@ function hire(type,walkIn=true,opts={}){
   if(!def) return null;
   const desk=def.needs==='server'?(SERVER_DESK.owner?null:SERVER_DESK):DESKS.find(d=>!d.owner);
   if(!desk) return null;
-  const n=state.emps.filter(e=>e.type===type).length;
-  const [shirt,hair,skin]=opts.look||def.looks[n%def.looks.length];
+  // each hire of a kind wears the next outfit, so colleagues of the same kind are easy to tell apart
+  const variant=opts.variant??state.emps.filter(e=>e.type===type).length;
+  const outfit=def.outfits[variant%def.outfits.length];
   const e={id:opts.id||`${type}-${Date.now().toString(36)}${Math.random().toString(36).slice(2,5)}`,type,name:opts.name||nextName(type),
-    model:def.model,traits:def.traits,speed:def.speed,memory:def.memory,price:def.price,needs:def.needs,pitch:def.pitch,shirt,hair,skin,desk,x:0,y:0,spot:null,path:[],job:null,log:[],spent:0,stamina:100,bubble:null,bubbleKind:'say',bubbleT:0,
+    model:def.model,traits:def.traits,speed:def.speed,memory:def.memory,price:def.price,needs:def.needs,pitch:def.pitch,persona:opts.persona||'',
+    variant,look:def.look,outfit,shirt:def.look.hair,hair:def.look.hair,skin:def.look.skin,desk,x:0,y:0,spot:null,path:[],job:null,log:[],spent:0,stamina:100,bubble:null,bubbleKind:'say',bubbleT:0,
     wanderT:3+Math.random()*6,anim:Math.random()*5,waiting:false,tiredWarned:false,helping:false,bond:{},xp:0,level:1,prefs:[],carry:false};
   desk.owner=e;
   state.emps.push(e);API.empDirty=true;
@@ -738,7 +790,48 @@ function startJob(task,mode,members){
   if(B) say(B,mode==='team'?'好，我负责审':'来了');
   state.orders=state.orders.filter(o=>o!==task);
   renderOrders();dirty();
+  // the boss asked to see a plan before any work starts
+  if(!task.project&&API.on&&specOf(task).planFirst&&!specOf(task).approvedPlan) requestPlan(j);
   return j;
+}
+function requestPlan(j,feedback){
+  const lead=j.members[0],m=modelLabel(lead);
+  j.phase='planning';lead.writing={out:'工作计划'};
+  addLog(lead,{kind:'sys',text:m?`先用 ${m} 写工作计划给老板看`:'先写工作计划给老板看（没有接入模型，会用提纲）'});
+  say(lead,'先写个计划给老板看','think');
+  API.post(`/api/orders/${encodeURIComponent(j.task.id)}/plan`,{lead:lead.id,members:j.members.map(x=>x.id),mode:j.mode,feedback:feedback||null,
+    decisions:j.decisions,transcript:j.transcript,day:state.day}).then(res=>{
+    lead.writing=null;
+    if(!state.jobs.includes(j)) return;
+    if(!res){j.phase='gather';return;}
+    logArtifacts(lead,res.artifacts);
+    const llm=res.artifacts.find(a=>a.type==='llm');
+    if(llm&&llm.cny) chargeReal(lead,llm.cny);
+    lead.waiting=true;lead.carry=true;say(lead,'老板，计划写好了，你看看');
+    state.queue.push({id:uid(),type:'plan',job:j,res,risk:'high',age:0});
+    placeQueue();renderQueue();dirty();
+  });
+}
+function resolvePlan(q,ok,feedback){
+  if(!state.queue.includes(q)) return;
+  state.queue=state.queue.filter(x=>x!==q);
+  const j=q.job,lead=j.members[0];
+  lead.waiting=false;lead.carry=false;
+  const decision=ok?'按计划开工':`计划要改：${feedback}`;
+  j.members.forEach(m=>addLog(m,{kind:'boss',text:decision}));
+  j.transcript.push(`老板：${decision}`);
+  API.post('/api/approvals',{kind:'approve',task:j.task.title,title:`${lead.name}的工作计划`,detail:q.res.summary||'',risk:'high',decision,auto:false,
+    people:j.members.map(m=>m.name),day:state.day,time:clock()});
+  goal('approve');
+  goTo(lead,j.mode==='meet'?MEET[0]:lead.desk.seat);
+  if(ok){
+    j.task.spec={...specOf(j.task),approvedPlan:q.res.plan};
+    API.post(`/api/orders/${encodeURIComponent(j.task.id)}/update`,{spec:j.task.spec});
+    say(lead,'好，按计划开工');j.phase='gather';
+  }else{
+    say(lead,'明白，我改一下计划');requestPlan(j,feedback);
+  }
+  placeQueue();renderQueue();dirty();
 }
 function execStep(j,st){
   const who=j.mode==='solo'?j.members[0]:mem(j,st.k);
@@ -823,7 +916,7 @@ function placeQueue(){
   let k=0;
   for(const q of state.queue){
     // whoever needs you walks to your door; meetings stay in the meeting room unless they bring work to review
-    const who=q.type==='gate'?q.e:q.type!=='review'&&q.job.mode==='meet'?null:q.job.members[0];
+    const who=q.type==='gate'?q.e:q.type==='review'||q.type==='plan'?q.job.members[0]:q.job.mode==='meet'?null:q.job.members[0];
     if(!who) continue;
     goTo(who,QUEUE[Math.min(k,QUEUE.length-1)]);k++;
   }
@@ -852,8 +945,32 @@ function resolve(item,i,auto){
 // finished work goes to your door for review; the lead carries it, partners go back to the lounge
 function finishJob(j){
   if(j.task.project){roleDone(j);return;}
-  if(j.mode==='meet') API.post('/api/meetings',{topic:j.task.title,attendees:j.members.map(m=>m.id),transcript:j.transcript,decisions:j.decisions})
+  if(j.mode==='meet'&&!j.delivered) API.post('/api/meetings',{topic:j.task.title,attendees:j.members.map(m=>m.id),transcript:j.transcript,decisions:j.decisions})
     .then(r=>{if(r) addLog(j.members[0],{kind:'tool',text:`会议纪要存入文档库：${r.doc}`});});
+  if(API.on&&!j.delivered){deliverOrder(j);return;}
+  toReview(j);
+}
+// the lead's own model writes the order's deliverable, from the boss's full requirements, before it goes to review
+function deliverOrder(j){
+  const lead=j.members[0],name=specOf(j.task).deliverable.name||'交付物',m=modelLabel(lead);
+  j.phase='writing';lead.writing={out:name};
+  addLog(lead,{kind:'sys',text:m?`开始用 ${m} 写${name}`:`开始写${name}（没有接入模型，会用模板）`});
+  say(lead,m?`正在用 ${m} 写${name}…`:`正在整理${name}…`,'think');
+  dirty();
+  API.post(`/api/orders/${encodeURIComponent(j.task.id)}/deliver`,{lead:lead.id,members:j.members.map(x=>x.id),mode:j.origMode,
+    decisions:j.decisions,transcript:j.transcript,feedback:j.feedback||null,day:state.day}).then(res=>{
+    lead.writing=null;
+    if(!state.jobs.includes(j)) return;
+    if(res){
+      logArtifacts(lead,res.artifacts);
+      const llm=res.artifacts.find(a=>a.type==='llm');
+      if(llm&&llm.cny) chargeReal(lead,llm.cny);
+      j.result=res;
+    }
+    j.delivered=true;toReview(j);
+  });
+}
+function toReview(j){
   j.phase='review';
   const lead=j.members[0];
   j.members.forEach((m,idx)=>{
@@ -874,7 +991,7 @@ function acceptReview(item,stars){
   lead.waiting=false;lead.carry=false;
   if(j.project) j.project.done=true;
   const people=j.project?projectPeople(j.project):j.members;
-  const d={id:uid(),title:j.task.out.title,body:j.task.out.body,by:people.map(m=>m.name).join(' + '),mode:j.origMode,
+  const d={id:uid(),title:j.task.out.title,body:j.result?.summary||j.task.out.body,by:people.map(m=>m.name).join(' + '),mode:j.origMode,
     decisions:j.decisions,time:clock(),day:state.day,stars,reworks:j.reworks,cost:j.cost};
   state.wall.unshift(d);state.completed++;
   const s=state.stats;s.done++;s.stars+=stars;s.reviews++;
@@ -885,20 +1002,25 @@ function acceptReview(item,stars){
     if(j.project.sid) API.post(`/api/projects/${j.project.sid}/review`,{stars,decisions:j.decisions}).then(r=>{if(r){logArtifacts(lead,r.artifacts);toast('项目已合并发布，总结存入文档库','ok');}});
   }else{
     API.post('/api/deliverables',{title:d.title,body:d.body,people:j.members.map(m=>m.id),mode:j.origMode,mode_label:MODE_LABEL[j.origMode],stars,
-      reworks:j.reworks,cost:j.cost,decisions:j.decisions,transcript:j.transcript,order_id:j.task.id}).then(r=>{if(r) addLog(lead,{kind:'tool',text:`交付物存入文档库：${r.doc}`});});
+      reworks:j.reworks,cost:j.cost,decisions:j.decisions,transcript:j.transcript,order_id:j.task.id,doc:j.result?.doc||null})
+      .then(r=>{if(r&&!j.result) addLog(lead,{kind:'tool',text:`交付物存入文档库：${r.doc}`});});
   }
   if(!lead.job){goTo(lead,freeLounge()||LOUNGE[0]);lead.wanderT=6+Math.random()*6;}
   toast(`${d.title} 验收 ${'★'.repeat(stars)}，挂上作品墙`,'ok');
   goal('review');renderWall();checkUnlocks();placeQueue();renderQueue();dirty();
 }
-function rejectReview(item,key){
+// key: one of REASONS (remembered as a preference), or 'custom' with the boss's own words
+function rejectReview(item,key,text){
   if(!state.queue.includes(item)) return;
   state.queue=state.queue.filter(q=>q!==item);
   if(item.job.project){reworkProject(item.job,key);return;}
-  const r=REASONS[key],j=item.job,lead=j.members[0],partner=j.members[1];
+  const r=key==='custom'?{label:text,plan:'按老板的意见改。',fix:'按老板的意见修改',pref:null}:REASONS[key];
+  const j=item.job,lead=j.members[0],partner=j.members[1];
   lead.waiting=false;lead.carry=false;
   j.reworks++;state.stats.reworks++;
   j.transcript.push(`老板打回：${r.label}`);
+  // the next delivery is written again by the model, with this feedback and the previous version
+  j.feedback=key==='custom'?text:`${r.label}。${r.plan}`;j.delivered=false;
   API.post('/api/reviews',{subject:j.task.out.title,reason:r.label,people:j.members.map(m=>m.name)});
   // the partner rejoins if free; otherwise the lead fixes it alone
   let mode=j.mode;
@@ -906,11 +1028,11 @@ function rejectReview(item,key){
   j.mode=mode;j.members=mode==='solo'?[lead]:[lead,partner];
   j.steps=revision(mode,r);j.i=0;j.t=0;j.phase='gather';j.dur=mode==='solo'?2.8*3/lead.speed:2.4;
   j.members.forEach((m,idx)=>{
-    m.job=j;addLog(m,{kind:'boss',text:`打回重做：${r.label}`});learn(m,r);
+    m.job=j;addLog(m,{kind:'boss',text:`打回重做：${r.label}`});if(r.pref) learn(m,r);
     goTo(m,mode==='meet'?MEET[idx]:m.desk.seat);
   });
   say(lead,'明白，马上改');
-  toast(`已打回：${r.label}。${j.members.map(m=>m.name).join('和')}会记住这个偏好。`);
+  toast(r.pref?`已打回：${r.label}。${j.members.map(m=>m.name).join('和')}会记住这个偏好。`:`已打回：${r.label}`);
   placeQueue();renderQueue();dirty();
 }
 function learn(m,r){if(!m.prefs.includes(r.pref)){m.prefs.push(r.pref);API.empDirty=true;addLog(m,{kind:'sys',text:'记住了你的偏好：'+r.pref});}}
@@ -926,8 +1048,9 @@ function gainXp(m,n){
   toast(`${m.name} 升到 Lv.${lv}：${name} +1`,'ok');
 }
 function cancelJob(j){
-  if(!j||j.phase==='review') return;
+  if(!j||j.phase==='review'||j.phase==='writing') return;
   state.jobs=state.jobs.filter(x=>x!==j);
+  j.members.forEach(m=>{m.writing=null;});
   state.queue=state.queue.filter(q=>q.job!==j);
   state.packets=state.packets.filter(p=>p.job!==j);
   if(j.h) j.h.c.helping=false;
@@ -1135,21 +1258,118 @@ function drawDesk(d){
   R(ctx,'#e6e1ea',d.x+11,d.y+3,8,2);
   if(o) R(ctx,o.shirt,d.x+22,d.y+2,4,4);
 }
+/* ---------- characters: a 12×18 office sprite and a 32×32 portrait drawn from the same look ---------- */
+// sprite: feet at (e.x, e.y); rows run from the hair top (y0) down to the shoes (y0+17)
 function drawPerson(e){
-  const x=Math.round(e.x)-5,y=Math.round(e.y)-14;
+  const L=e.look,O=e.outfit,x=Math.round(e.x)-6,y=Math.round(e.y)-18;
   const walking=e.path.length>0,f=walking?Math.floor(e.anim*7)%2:0;
-  if(state.selected===e){R(ctx,'#f2b544',x-1,y+14,12,2);}
-  ctx.fillStyle='rgba(0,0,0,.28)';ctx.fillRect(x+1,y+13,8,2);
-  R(ctx,'#2b2838',x+2,y+10,2,f?3:4);R(ctx,'#2b2838',x+6,y+10,2,f?4:3);
-  R(ctx,e.shirt,x+1,y+6,8,5);
-  const typing=(e.writing||(e.job&&e.job.phase==='run'))&&!walking;
-  const a=typing?Math.floor(e.anim*6)%2:0;
-  R(ctx,e.skin,x,y+7+(typing?a:0),1,3);R(ctx,e.skin,x+9,y+7+(typing?1-a:0),1,3);
-  if(e.carry){R(ctx,'#efe9dc',x+8,y+5,4,6);R(ctx,'#c3a6ea',x+8,y+5,4,1);}
-  R(ctx,e.skin,x+2,y+1,6,5);
-  R(ctx,e.hair,x+2,y,6,2);R(ctx,e.hair,x+1,y+1,1,3);R(ctx,e.hair,x+8,y+1,1,2);
-  R(ctx,'#2a1f1f',x+3,y+3,1,1);R(ctx,'#2a1f1f',x+6,y+3,1,1);
-  if(state.dropHover===e.id){ctx.strokeStyle='#f2b544';ctx.lineWidth=1;ctx.strokeRect(x-2.5,y-2.5,15,20);}
+  const typing=(e.writing||(e.job&&e.job.phase==='run'))&&!walking,a=typing?Math.floor(e.anim*6)%2:0;
+  const sway=Math.floor(e.anim*2.5)%2,has=k=>L.acc.includes(k);
+  const hairR=(hx,hy,w,h,c)=>R(ctx,c||(L.hair2&&hx+w/2>6?L.hair2:L.hair),x+hx,y+hy,w,h);
+  if(state.selected===e) R(ctx,'#f2b544',x,y+18,12,1);
+  ctx.fillStyle='rgba(0,0,0,.28)';ctx.fillRect(x+2,y+17,8,2);
+  // behind the body: long hair, twin tails, wings, tails
+  if(L.style==='long'){hairR(2,3,8,10,L.hairShade);if(L.hairTip) R(ctx,L.hairTip,x+2,y+10,8,3);}
+  if(L.style==='twintail'){hairR(0,3,2,8);hairR(10,3,2,8);R(ctx,L.hairShade,x+1,y+9,1,2);R(ctx,L.hairShade,x+10,y+9,1,2);}
+  if(has('wings')){R(ctx,'#eef0fa',x,y+8,2,3);R(ctx,'#eef0fa',x+10,y+8,2,3);R(ctx,'#cfd3e6',x,y+10,1,1);R(ctx,'#cfd3e6',x+11,y+10,1,1);}
+  if(has('whaleTail')){
+    R(ctx,L.tail,x+8,y+13,3,2);R(ctx,L.tailBelly,x+8,y+14,3,1);
+    R(ctx,L.tail,x+10+sway,y+10,2,3);R(ctx,L.tail,x+12+sway,y+9,1,2);R(ctx,L.tail,x+9+sway,y+9,1,1);R(ctx,L.tailBelly,x+10+sway,y+12,2,1);
+  }
+  if(has('dragonTail')){R(ctx,'#f4f4fa',x+9,y+14,2,1);R(ctx,'#f4f4fa',x+10+sway,y+12,2,2);R(ctx,'#d6ae46',x+11+sway,y+12,1,1);}
+  // legs, dress, arms
+  R(ctx,O.legs,x+4,y+15,2,f?2:3);R(ctx,O.legs,x+6,y+15,2,f?3:2);
+  R(ctx,O.shoes||'#3a2a2a',x+4,y+17-(f?1:0),2,1);R(ctx,O.shoes||'#3a2a2a',x+6,y+17-(f?0:1),2,1);
+  R(ctx,O.dress,x+3,y+9,6,3);R(ctx,O.dress,x+2,y+12,8,3);R(ctx,O.trim,x+2,y+14,8,1);
+  if(O.apron){R(ctx,'#ffffff',x+4,y+10,4,4);R(ctx,'#ffffff',x+5,y+9,2,1);}
+  if(O.maid){R(ctx,'#ffffff',x+4,y+11,4,3);R(ctx,'#ffffff',x+5,y+10,2,1);R(ctx,'#2f5fd0',x+5,y+12,2,1);R(ctx,'#0f1a3a',x+5,y+9,2,1);}
+  if(O.sash) R(ctx,O.trim,x+3,y+11,6,1);
+  if(O.collar) R(ctx,O.collar,x+4,y+9,4,1);
+  if(O.gold){R(ctx,O.trim,x+3,y+9,6,1);R(ctx,O.trim,x+5,y+10,2,4);}
+  if(O.hood) R(ctx,O.trim,x+5,y+10,2,1);
+  R(ctx,O.dress,x+1,y+10+(typing?a:0),1,2);R(ctx,L.skin,x+1,y+12+(typing?a:0),1,1);
+  R(ctx,O.dress,x+10,y+10+(typing?1-a:0),1,2);R(ctx,L.skin,x+10,y+12+(typing?1-a:0),1,1);
+  if(e.carry){R(ctx,'#efe9dc',x+9,y+10,4,5);R(ctx,'#c3a6ea',x+9,y+10,4,1);}
+  // head
+  R(ctx,L.skin,x+3,y+3,6,6);R(ctx,L.skin,x+5,y+8,2,1);
+  hairR(3,1,6,2);hairR(2,2,8,1);hairR(3,3,6,1);R(ctx,L.hairLight,x+4,y+1,2,1);
+  hairR(2,3,1,L.style==='short'?3:4);hairR(9,3,1,L.style==='short'?3:4);
+  hairR(3,4,1,1);hairR(5,4,2,1);hairR(8,4,1,1);
+  if(L.style==='buns'){hairR(2,0,2,2);hairR(8,0,2,2);}
+  if(has('glasses')){R(ctx,'#22222a',x+3,y+5,6,1);R(ctx,L.eyes,x+4,y+6,1,1);R(ctx,L.eyes,x+7,y+6,1,1);}
+  else{R(ctx,L.eyes,x+4,y+5,1,2);R(ctx,L.eyes,x+7,y+5,1,2);}
+  R(ctx,'#f3a3a3',x+3,y+7,1,1);R(ctx,'#f3a3a3',x+8,y+7,1,1);
+  // accessories
+  if(has('horns')){R(ctx,'#e9d9a2',x+3,y,1,1);R(ctx,'#e9d9a2',x+8,y,1,1);R(ctx,'#e9d9a2',x+2,y-1,1,1);R(ctx,'#e9d9a2',x+9,y-1,1,1);}
+  if(has('smallHorns')){R(ctx,'#cfd3e6',x+3,y,1,1);R(ctx,'#cfd3e6',x+8,y,1,1);}
+  if(has('sunflower')){R(ctx,'#ffcc33',x+8,y,3,3);R(ctx,'#8a4a1a',x+9,y+1,1,1);}
+  if(has('whaleClip')){R(ctx,'#8cc0ff',x+8,y+1,3,2);R(ctx,'#8cc0ff',x+11,y,1,2);R(ctx,'#1f2a4a',x+8,y+1,1,1);}
+  if(has('maidCap')){R(ctx,'#ffffff',x+3,y+1,6,1);R(ctx,'#ffffff',x+4,y,1,1);R(ctx,'#ffffff',x+7,y,1,1);}
+  if(has('ahoge')){R(ctx,L.hair,x+6,y-1,1,1);R(ctx,L.hair,x+7,y-2,1,1);}
+  if(has('finEars')){
+    R(ctx,L.tail,x,y+3,2,1);R(ctx,L.tail,x-1,y+4,2,1);R(ctx,L.tailBelly,x,y+4,1,1);
+    R(ctx,L.tail,x+10,y+3,2,1);R(ctx,L.tail,x+11,y+4,2,1);R(ctx,L.tailBelly,x+11,y+4,1,1);
+  }
+  if(has('bows')){R(ctx,'#3d8fe0',x+2,y+5,1,1);R(ctx,'#3d8fe0',x+9,y+5,1,1);}
+  if(has('star')){R(ctx,'#ffd76a',x+9,y,1,3);R(ctx,'#ffd76a',x+8,y+1,3,1);}
+  if(state.dropHover===e.id){ctx.strokeStyle='#f2b544';ctx.lineWidth=1;ctx.strokeRect(x-1.5,y-2.5,15,22);}
+}
+// bust portrait for the staff panel and hiring cards
+function drawPortrait(cv,L,O){
+  const c=cv.getContext('2d');c.clearRect(0,0,32,32);c.imageSmoothingEnabled=false;
+  const has=k=>L.acc.includes(k);
+  const r=(x,y,w,h,col)=>{c.fillStyle=col;c.fillRect(x,y,w,h);};
+  const hr=(x,y,w,h,col)=>r(x,y,w,h,col||(L.hair2&&x+w/2>16?L.hair2:L.hair));
+  if(has('wings')){r(0,20,7,8,'#eef0fa');r(25,20,7,8,'#eef0fa');r(1,26,5,2,'#cfd3e6');r(26,26,5,2,'#cfd3e6');}
+  if(L.style==='long'){hr(6,9,20,20,L.hairShade);if(L.hairTip){r(6,21,20,8,L.hairTip);r(5,24,22,5,L.hairTip);}}
+  if(L.style==='twintail'){hr(1,9,5,18);hr(26,9,5,18);r(3,22,2,4,L.hairShade);r(27,22,2,4,L.hairShade);}
+  if(has('whaleTail')){r(25,25,5,4,L.tail);r(27,21,5,4,L.tail);r(30,19,2,3,L.tail);r(27,24,4,1,L.tailBelly);}
+  // shoulders and outfit
+  r(7,25,18,7,O.dress);
+  if(O.apron){r(11,26,10,6,'#ffffff');r(10,26,1,6,'#e6e6ee');r(21,26,1,6,'#e6e6ee');}
+  if(O.maid){
+    r(12,25,8,7,'#ffffff');r(13,25,6,2,'#0f1a3a');r(15,27,2,1,'#0f1a3a');r(15,29,2,1,O.trim);r(15,31,2,1,O.trim);
+    r(9,27,2,5,'#ffffff');r(21,27,2,5,'#ffffff');r(7,30,2,2,O.trim);r(23,30,2,2,O.trim);
+  }
+  if(O.collar){r(11,25,10,2,O.collar);r(15,27,2,2,O.collar);}
+  if(O.sash) r(7,29,18,2,O.trim);
+  if(O.gold){r(11,25,10,1,O.trim);r(15,26,2,6,O.trim);}
+  if(O.hood){r(8,24,16,2,O.dress);r(13,27,1,4,O.trim);r(18,27,1,4,O.trim);}
+  r(14,22,4,3,L.skin);
+  // face
+  r(10,9,12,13,L.skin);r(9,10,14,10,L.skin);
+  // hair
+  hr(8,5,16,6);hr(7,7,18,4);hr(9,4,14,1);r(11,6,5,1,L.hairLight);
+  hr(9,10,14,1);hr(9,11,3,2);hr(14,11,3,1);hr(19,11,4,2);
+  hr(7,10,2,L.style==='short'?7:11);hr(23,10,2,L.style==='short'?7:11);
+  if(L.hairTip){r(7,17,2,4,L.hairTip);r(23,17,2,4,L.hairTip);}
+  if(L.style==='buns'){hr(5,2,6,6);hr(21,2,6,6);r(7,3,2,1,L.hairLight);}
+  // eyes
+  const eyeDark=shade(L.eyes,.6);
+  r(10,13,4,1,'#2a1f2a');r(18,13,4,1,'#2a1f2a');
+  r(11,14,3,4,L.eyes);r(18,14,3,4,L.eyes);r(12,15,2,3,eyeDark);r(19,15,2,3,eyeDark);
+  r(11,14,1,1,'#ffffff');r(18,14,1,1,'#ffffff');
+  if(has('glasses')){c.strokeStyle='#22222a';c.lineWidth=1;c.strokeRect(9.5,12.5,6,6);c.strokeRect(16.5,12.5,6,6);r(15,15,2,1,'#22222a');}
+  r(9,18,2,1,'#f5a5a5');r(21,18,2,1,'#f5a5a5');r(15,19,2,1,'#c0605a');
+  // accessories
+  if(has('horns')){r(9,1,2,5,'#e9d9a2');r(21,1,2,5,'#e9d9a2');r(8,0,2,2,'#f6ecc8');r(22,0,2,2,'#f6ecc8');}
+  if(has('smallHorns')){r(10,2,2,3,'#cfd3e6');r(20,2,2,3,'#cfd3e6');}
+  if(has('sunflower')){r(22,2,4,8,'#ffcc33');r(20,4,8,4,'#ffcc33');r(21,3,6,6,'#ffd95c');r(22,4,4,4,'#8a4a1a');r(23,5,1,1,'#a8642a');}
+  if(has('whaleClip')){r(20,5,6,3,'#8cc0ff');r(26,4,2,2,'#8cc0ff');r(26,7,1,1,'#8cc0ff');r(21,6,1,1,'#1f2a4a');r(20,8,6,1,'#5a9ae8');}
+  if(has('star')){r(23,2,1,7,'#ffd76a');r(20,5,7,1,'#ffd76a');r(22,4,3,3,'#ffd76a');}
+  if(has('maidCap')){r(9,4,14,2,'#ffffff');for(const sx of [9,12,15,18,21]) r(sx,3,2,1,'#ffffff');r(9,6,14,1,'#dde3ef');}
+  if(has('ahoge')){r(16,1,1,4,L.hair);r(17,0,2,1,L.hair);}
+  if(has('finEars')){
+    // drooping fins, wide at the head and tapering outward, pale on the underside
+    r(3,11,5,1,L.tail);r(2,12,6,1,L.tail);r(1,13,5,1,L.tail);r(0,14,4,1,L.tail);r(0,15,2,1,L.tail);r(2,13,3,1,L.tailBelly);r(1,14,2,1,L.tailBelly);
+    r(24,11,5,1,L.tail);r(24,12,6,1,L.tail);r(26,13,5,1,L.tail);r(28,14,4,1,L.tail);r(30,15,2,1,L.tail);r(27,13,3,1,L.tailBelly);r(29,14,2,1,L.tailBelly);
+  }
+  if(has('bows')){r(6,8,3,2,'#3d8fe0');r(23,8,3,2,'#3d8fe0');r(7,8,1,2,'#2a6fc0');r(24,8,1,2,'#2a6fc0');}
+}
+// a portrait canvas element for an employee or a kind of employee
+function portraitEl(look,outfit,size=64){
+  const cv=document.createElement('canvas');cv.width=32;cv.height=32;cv.className='portrait';
+  cv.style.width=cv.style.height=size+'px';drawPortrait(cv,look,outfit);return cv;
 }
 function draw(){
   ctx.imageSmoothingEnabled=false;
@@ -1183,7 +1403,7 @@ function draw(){
 }
 function link(a,b){
   ctx.save();ctx.setLineDash([2,3]);ctx.lineDashOffset=-T*12;ctx.strokeStyle='rgba(195,166,234,.75)';ctx.lineWidth=1;
-  ctx.beginPath();ctx.moveTo(Math.round(a.x)+.5,Math.round(a.y)-17.5);ctx.lineTo(Math.round(b.x)+.5,Math.round(b.y)-17.5);ctx.stroke();ctx.restore();
+  ctx.beginPath();ctx.moveTo(Math.round(a.x)+.5,Math.round(a.y)-21.5);ctx.lineTo(Math.round(b.x)+.5,Math.round(b.y)-21.5);ctx.stroke();ctx.restore();
 }
 
 /* ---------- overlay ---------- */
@@ -1224,7 +1444,7 @@ function syncOverlay(){
   const placed=[];
   for(const e of state.emps){
     const t=e.tagEl,b=e.bubEl;
-    t.style.left=pct(e.x,W);t.style.top=pct(e.y-16,H);
+    t.style.left=pct(e.x,W);t.style.top=pct(e.y-21,H);
     t.classList.toggle('sel',state.selected===e);
     const [ic,cls]=statusIcon(e),st=t.firstChild;
     if(st.textContent!==ic){st.textContent=ic;st.className='st '+cls;}
@@ -1232,7 +1452,7 @@ function syncOverlay(){
       if(b.hidden) b.hidden=false;
       if(b.dataset.txt!==e.bubble){b.dataset.txt=e.bubble;b.textContent=e.bubble;b.className='bubble '+e.bubbleKind;}
       // stack bubbles of people standing close together instead of overlapping them
-      const bx=Math.min(Math.max(e.x,46),W-46);let by=e.y-25;
+      const bx=Math.min(Math.max(e.x,46),W-46);let by=e.y-30;
       while(placed.some(p=>Math.abs(p.x-bx)<80&&Math.abs(p.y-by)<15)) by-=15;
       placed.push({x:bx,y:by});
       b.style.left=pct(bx,W);b.style.top=pct(by,H);
@@ -1248,7 +1468,7 @@ function toLocal(cx,cy){
 }
 function empAt(p){
   let hit=null;
-  for(const e of state.emps) if(Math.abs(p.x-e.x)<=8&&p.y>=e.y-18&&p.y<=e.y+3&&(!hit||e.y>hit.y)) hit=e;
+  for(const e of state.emps) if(Math.abs(p.x-e.x)<=8&&p.y>=e.y-22&&p.y<=e.y+3&&(!hit||e.y>hit.y)) hit=e;
   return hit;
 }
 const inRoom=(p,r)=>p.x>=r.x&&p.x<r.x+r.w&&p.y>=r.y&&p.y<r.y+r.h;
@@ -1279,7 +1499,7 @@ cv.addEventListener('click',ev=>{
 const ghost=$('#ghost');
 function bindDrag(card,task){
   let sx=0,sy=0,dragging=false,pid=null;
-  card.addEventListener('pointerdown',ev=>{if(ev.button!==0) return;sx=ev.clientX;sy=ev.clientY;dragging=false;pid=ev.pointerId;card.setPointerCapture(pid);});
+  card.addEventListener('pointerdown',ev=>{if(ev.button!==0) return;sx=ev.clientX;sy=ev.clientY;dragging=false;pid=ev.pointerId;try{card.setPointerCapture(pid);}catch{/* a pointer that already ended can't be captured */}});
   card.addEventListener('pointermove',ev=>{
     if(pid!==ev.pointerId) return;
     if(!dragging&&Math.hypot(ev.clientX-sx,ev.clientY-sy)>6){dragging=true;closeMenu();ghost.textContent=task.title;ghost.className='ghost';ghost.hidden=false;card.classList.add('dragging');}
@@ -1334,7 +1554,9 @@ function openMenu(task,card){
   tm.innerHTML=`工位区：两人分工、互相审查<small>空闲 ${idle} 人</small>`;tm.disabled=idle<2;tm.onclick=()=>assign(task,'work',at);
   const pl=document.createElement('button');
   pl.innerHTML=`安排分工：拆给多人接力<small>打开分工窗口</small>`;pl.onclick=()=>{closeMenu();openPlanner({name:task.title,goal:task.brief,order:task});};
-  menu.append(m,tm,pl);
+  const ed=document.createElement('button');
+  ed.innerHTML='编辑订单要求<small>细化要求、验收标准</small>';ed.onclick=()=>{closeMenu();openOrderForm(task);};
+  menu.append(m,tm,pl,ed);
   menu.hidden=false;placeMenu(at);
   menu.querySelector('button:not(:disabled)')?.focus();
 }
@@ -1359,12 +1581,96 @@ document.addEventListener('keydown',ev=>{if(ev.key==='Escape'){closeMenu();if(!$
 /* ---------- panels ---------- */
 function renderOrders(){
   const el=$('#orders');el.innerHTML='';
-  if(!state.orders.length){el.innerHTML='<p class="empty">没有待分配的订单。点「新订单」写一个话题。</p>';return;}
-  for(const t of state.orders){
-    const c=document.createElement('div');c.className='order';c.tabIndex=0;
-    c.innerHTML=`<h3>${esc(t.title)}</h3><p>${esc(t.brief)}</p><div class="meta"><span class="num">${t.est}</span><span class="grab">拖动分配</span></div>`;
+  if(!state.orders.length){el.innerHTML='<p class="empty">没有待分配的订单。点「新订单」写清楚要做什么。</p>';return;}
+  // urgent work first
+  const list=[...state.orders].sort((a,b)=>(specOf(b).priority==='urgent')-(specOf(a).priority==='urgent'));
+  for(const t of list){
+    const s=specOf(t);
+    const tags=[s.priority==='urgent'?'<span class="pill urgent">紧急</span>':'',
+      `<span class="pill">${s.deliverable.kind==='code'?'代码':'文档'}${s.deliverable.name?`：${esc(s.deliverable.name)}`:''}</span>`,
+      s.criteria.length?`<span class="pill">${s.criteria.length} 条验收标准</span>`:'',s.refs?'<span class="pill">有参考资料</span>':'',
+      s.planFirst?'<span class="pill">先看计划</span>':''].join('');
+    const c=document.createElement('div');c.className='order'+(s.priority==='urgent'?' urgent':'');c.tabIndex=0;
+    c.innerHTML=`<h3>${t.fresh?'<span class="pill new">新</span>':''}${esc(t.title)}</h3><p>${esc(t.brief)}</p><div class="tags">${tags}</div>
+      <div class="meta"><span class="num">${t.est}</span><span class="grab">拖动分配 · 点击编辑</span></div>`;
     bindDrag(c,t);el.appendChild(c);
   }
+}
+/* ---------- order form: what exactly the boss wants ---------- */
+function openOrderForm(task){
+  const editing=!!task,s=specOf(task||{brief:''});
+  const who=state.emps.map(e=>`<option value="${e.id}">${esc(e.name)} 单独做（${esc(e.model)}）</option>`).join('');
+  card.classList.add('wide');
+  openModal(`<h2>${editing?'编辑订单':'新订单'}</h2>
+  <p class="label">写得越细，员工交出来的东西越接近你要的。除了标题，其他都可以不填。</p>
+  <form id="orderForm" class="order-form">
+    <label class="field">标题<input id="ofTitle" maxlength="40" value="${esc(task?.title||'')}" placeholder="比如：给官网首页写三版文案"></label>
+    <label class="field">要做什么<textarea id="ofDetail" rows="4" placeholder="背景、目标、给谁看、做到什么程度……">${esc(s.detail||'')}</textarea></label>
+    <div class="field-row">
+      <label class="field">交付物类型<select id="ofKind"><option value="doc">文档</option><option value="code"${s.deliverable.kind==='code'?' selected':''}>代码</option></select></label>
+      <label class="field grow">交付物名称<input id="ofName" maxlength="30" value="${esc(s.deliverable.name||'')}" placeholder="比如：首页文案三版 / 番茄钟脚本"></label>
+      <label class="field">优先级<select id="ofPri"><option value="normal">普通</option><option value="urgent"${s.priority==='urgent'?' selected':''}>紧急</option></select></label>
+    </div>
+    <label class="field">验收标准（每行一条，员工交付时会逐条自查）<textarea id="ofCriteria" rows="3" placeholder="每版不超过 80 字&#10;至少一版偏幽默">${esc(s.criteria.join('\n'))}</textarea></label>
+    <label class="field">参考资料（文字、链接、数据，会原样交给员工）<textarea id="ofRefs" rows="3">${esc(s.refs||'')}</textarea></label>
+    <label class="chk"><input type="checkbox" id="ofPlan"${s.planFirst?' checked':''}> 开工前先给我看工作计划</label>
+    ${editing?'':`<label class="field">谁来做<select id="ofWho"><option value="">先放到任务板，稍后再分配</option>${who}
+      <option value="work">两人分工、互相审查</option><option value="meeting">两人先开会讨论</option><option value="plan">拆给多人接力（打开安排工作）</option></select></label>`}
+    <p class="plan-err" id="ofErr" hidden></p>
+    <div class="row-btns"><button class="btn primary" type="submit">${editing?'保存':'创建订单'}</button><button class="btn" type="button" id="ofCancel">取消</button></div>
+  </form>`);
+  $('#ofTitle').focus();
+  $('#ofCancel').onclick=closeModal;
+  $('#orderForm').onsubmit=ev=>{
+    ev.preventDefault();
+    const title=$('#ofTitle').value.trim();
+    if(!title){$('#ofErr').textContent='先写个标题。';$('#ofErr').hidden=false;return;}
+    const spec={detail:$('#ofDetail').value.trim(),deliverable:{kind:$('#ofKind').value,name:$('#ofName').value.trim()},
+      criteria:$('#ofCriteria').value.split('\n').map(x=>x.trim()).filter(Boolean),refs:$('#ofRefs').value.trim(),
+      priority:$('#ofPri').value,planFirst:$('#ofPlan').checked};
+    const brief=spec.detail?(spec.detail.length>60?spec.detail.slice(0,60)+'…':spec.detail):'（没写详细要求）';
+    if(editing){
+      // a renamed custom order gets office scripts that mention the new title
+      if(!TASKS.includes(task)&&task.title!==title){const fresh=customTask(title,brief);for(const k of ['solo','team','meet']) task[k]=fresh[k];}
+      Object.assign(task,{title,brief,spec});
+      task.out={...task.out,title:`《${spec.deliverable.name||title}》`};
+      API.post(`/api/orders/${encodeURIComponent(task.id)}/update`,{title,brief,spec});
+      closeModal();renderOrders();toast('订单已更新');
+      return;
+    }
+    const t=customTask(title,brief);t.spec=spec;t.out.title=`《${spec.deliverable.name||title}》`;
+    state.orders.push(t);
+    const target=$('#ofWho').value,r=$('#newOrderBtn').getBoundingClientRect();
+    closeModal();renderOrders();
+    API.post('/api/orders',orderRecord(t,'custom')).then(()=>{
+      if(!target) toast(`新订单「${title}」已放上任务板`);
+      else if(target==='plan') openPlanner({name:title,goal:[spec.detail,...spec.criteria.map(c=>`- ${c}`)].filter(Boolean).join('\n'),order:t});
+      else assign(t,target,{x:r.left,y:r.bottom});
+    });
+  };
+}
+// model, cost, follow-up questions and links for a deliverable the employee actually wrote
+function deliveryInfo(res){
+  if(!res) return '';
+  const arts=res.artifacts||[],llm=arts.find(a=>a.type==='llm'),fb=arts.find(a=>a.type==='fallback'),
+    doc=arts.find(a=>a.type==='doc'),code=arts.find(a=>a.type==='commit');
+  return `<p class="cost">${llm?`由 ${esc(llm.model)} 撰写`:`模型没写成，用了模板：${esc(fb?.reason||'')}`}</p>
+    ${res.open_questions?.length?`<ul class="dec">${res.open_questions.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
+    <div class="opts row">${doc?`<a class="opt" href="/company.html#docs/${encodeURIComponent(doc.path)}" target="_blank" rel="noopener">打开交付物</a>`:''}${code?`<a class="opt" href="/company.html#git" target="_blank" rel="noopener">看代码</a>`:''}</div>`;
+}
+function planCard(q){
+  const j=q.job,lead=j.members[0],res=q.res;
+  const card=document.createElement('article');card.className='ask high';
+  card.innerHTML=`<header><span class="pill">工作计划</span><span>${esc(lead.name)} · ${esc(j.task.title)}</span></header>
+    <h3>开工前请你看一下计划</h3><p>${esc(res.summary||'')}</p>
+    <pre class="plan-text">${esc(res.plan)}</pre>${deliveryInfo({...res,artifacts:(res.artifacts||[]).filter(a=>a.type!=='doc')})}
+    <div class="opts row"><button class="opt yes" data-ok>按计划开工</button><button class="opt no" data-fix>需要修改</button></div>
+    <form class="say-form" hidden><input type="text" maxlength="200" placeholder="计划要怎么改" aria-label="计划修改意见"><button class="btn" type="submit">发回修改</button></form>`;
+  const form=card.querySelector('form');
+  card.querySelector('[data-ok]').onclick=()=>resolvePlan(q,true);
+  card.querySelector('[data-fix]').onclick=()=>{form.hidden=!form.hidden;if(!form.hidden) form.querySelector('input').focus();};
+  form.onsubmit=ev=>{ev.preventDefault();const v=form.querySelector('input').value.trim();if(!v){toast('写一句计划要怎么改。');return;}resolvePlan(q,false,v);};
+  return card;
 }
 function renderQueue(){
   const el=$('#queue');
@@ -1373,19 +1679,23 @@ function renderQueue(){
   el.innerHTML='';
   for(const q of state.queue){
     if(q.type==='gate'){el.appendChild(gateCard(q));continue;}
+    if(q.type==='plan'){el.appendChild(planCard(q));continue;}
     const j=q.job,st=q.step;
     if(q.type==='review'){
       const o=j.task.out,card=document.createElement('article');card.className='ask review';
       card.innerHTML=`<header><span class="pill">验收</span><span>${esc(j.members.map(m=>m.name).join(' + '))} · ${MODE_LABEL[j.origMode]}${j.reworks?` · 第 ${j.reworks+1} 版`:''}</span></header>
-        <h3>${esc(o.title)}</h3><p>${esc(o.body)}</p>
+        <h3>${esc(o.title)}</h3><p>${esc(j.result?.summary||o.body)}</p>${deliveryInfo(j.result)}
         ${j.decisions.length?`<ul class="dec">${j.decisions.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
         <p class="cost num">这单花了 ${yuan(j.cost)}</p>
         <div class="opts row"><button class="opt yes" data-s="3">通过 ★★★</button><button class="opt" data-s="2">★★</button><button class="opt" data-s="1">★</button><button class="opt no" data-r>打回</button></div>
-        <div class="reasons"${q.showReasons?'':' hidden'}><span class="label">打回原因（员工会记住，以后照做）</span><div class="opts row">${Object.entries(REASONS).map(([k,r])=>`<button class="opt" data-k="${k}">${r.label}</button>`).join('')}</div></div>
+        <div class="reasons"${q.showReasons?'':' hidden'}><span class="label">打回原因（员工会记住，以后照做）</span><div class="opts row">${Object.entries(REASONS).map(([k,r])=>`<button class="opt" data-k="${k}">${r.label}</button>`).join('')}</div>
+          ${j.project?'':`<form class="say-form" data-custom><input type="text" maxlength="200" placeholder="或者直接写具体要改什么" aria-label="具体修改意见"><button class="btn" type="submit">发回修改</button></form>`}</div>
         <button class="link">查看完整记录</button>`;
       card.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>acceptReview(q,+b.dataset.s));
       card.querySelector('[data-r]').onclick=()=>{q.showReasons=!q.showReasons;card.querySelector('.reasons').hidden=!q.showReasons;};
       card.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>rejectReview(q,b.dataset.k));
+      const cf=card.querySelector('[data-custom]');
+      if(cf) cf.onsubmit=ev=>{ev.preventDefault();const v=cf.querySelector('input').value.trim();if(!v){toast('写一句要改什么。');return;}rejectReview(q,'custom',v);};
       card.querySelector('.link').onclick=()=>select(j.members[0]);
       el.appendChild(card);continue;
     }
@@ -1430,14 +1740,18 @@ function renderStaff(){
   const oldLog=box.querySelector('.log');
   // keep a half-typed message across re-renders
   const prevIn=box.querySelector('#sayInput'),keep=prevIn&&box.dataset.emp===state.selected?.id?{v:prevIn.value,f:document.activeElement===prevIn}:null;
+  const prevP=box.querySelector('#personaInput'),keepP=prevP&&box.dataset.emp===state.selected?.id?{v:prevP.value,f:document.activeElement===prevP}:null;
   box.dataset.emp=state.selected?.id||'';
   const atBottom=!oldLog||oldLog.scrollHeight-oldLog.scrollTop-oldLog.clientHeight<30;
   const e=state.selected;
   let h='<div class="chips">'+state.emps.map(x=>`<button class="chip" data-id="${x.id}" aria-pressed="${x===e}"><span class="sw" style="background:${x.shirt}"></span>${esc(x.name)}</button>`).join('')+'</div>';
   if(!e){h+='<p class="empty">点办公室里的员工，或上面的名字，查看 TA 的完整记录。</p>';box.innerHTML=h;bindChips(box);return;}
   const st=Math.round(e.stamina);
-  h+=`<div class="emp-head"><span class="sw" style="background:${e.shirt}"></span><div><h3>${esc(e.name)}</h3><p>${esc(e.model)} · Lv.${e.level} · ${statusText(e)}</p></div></div>
+  h+=`<div class="emp-head"><span class="pslot"></span><div><h3>${esc(e.name)}</h3><p>${esc(TYPES[e.type]?.nick||e.model)} · Lv.${e.level} · ${statusText(e)}</p></div></div>
   <div class="traits">${e.traits.map(t=>`<span>${esc(t)}</span>`).join('')}</div>
+  <div class="persona"><span class="label">岗位与专长（会写进 TA 的每份工作说明）</span>${state.editPersona===e.id
+    ?`<textarea id="personaInput" rows="3" maxlength="300" aria-label="岗位与专长">${esc(e.persona||'')}</textarea><div class="row-btns"><button class="btn primary" id="personaSave">保存</button><button class="btn" id="personaCancel">取消</button></div>`
+    :`<p>${esc(e.persona||'还没写。写清楚 TA 是做什么的，交付会更对路。')}</p><button class="link" id="personaEdit">修改</button>`}</div>
   <dl class="stats">
     <dt>速度</dt><dd class="pips">${pips(e.speed)}</dd>
     <dt>记忆力</dt><dd class="pips">${pips(e.memory)}</dd>
@@ -1454,6 +1768,7 @@ function renderStaff(){
   <div class="row-btns"><button class="btn" id="restBtn"${st>=95?' disabled':''}>下班休息（压缩记忆）</button>${e.job&&e.job.phase!=='review'&&!e.job.task.project?'<button class="btn" id="stopBtn">叫停这单</button>':''}</div>
   <ul class="log">${e.log.map(l=>`<li class="${l.kind}"><span class="t num">${l.t}</span><span class="x">${KIND[l.kind]?`<span class="k">${KIND[l.kind]}</span>`:''}${l.who?`<span class="w">${esc(l.who)}：</span>`:''}${esc(l.text)}${l.cost?`<span class="c num">${yuan(l.cost)}</span>`:''}</span></li>`).join('')}</ul>`;
   box.innerHTML=h;bindChips(box);
+  box.querySelector('.pslot').appendChild(portraitEl(e.look,e.outfit,64));
   const log=box.querySelector('.log');
   if(atBottom) log.scrollTop=log.scrollHeight;else if(oldLog) log.scrollTop=oldLog.scrollTop;
   $('#restBtn').onclick=()=>{
@@ -1468,6 +1783,14 @@ function renderStaff(){
     sf.onsubmit=ev=>{ev.preventDefault();const v=inp.value.trim();if(!v) return;inp.value='';interject(e,v);};
   }
   const sb=$('#stopBtn');if(sb) sb.onclick=()=>cancelJob(e.job);
+  const pin=$('#personaInput');
+  if(pin&&keepP){pin.value=keepP.v;if(keepP.f) pin.focus();}
+  const pe=$('#personaEdit');if(pe) pe.onclick=()=>{state.editPersona=e.id;renderStaff();$('#personaInput').focus();};
+  const pc=$('#personaCancel');if(pc) pc.onclick=()=>{state.editPersona=null;renderStaff();};
+  const ps=$('#personaSave');if(ps) ps.onclick=()=>{
+    e.persona=$('#personaInput').value.trim();state.editPersona=null;API.empDirty=true;
+    addLog(e,{kind:'sys',text:`岗位与专长更新为：${e.persona||'（空）'}`});renderStaff();
+  };
 }
 function bindChips(box){box.querySelectorAll('.chip').forEach(c=>c.onclick=()=>select(state.emps.find(x=>x.id===c.dataset.id)));}
 function renderWall(){
@@ -1538,16 +1861,7 @@ $('#focusBtn').onclick=()=>{
   state.focus=!state.focus;$('#focusBtn').setAttribute('aria-pressed',state.focus);
   $('#stage').hidden=state.focus;$('#focusView').hidden=!state.focus;if(state.focus) renderFocus();
 };
-$('#newOrderBtn').onclick=()=>{const f=$('#newOrderForm');f.hidden=!f.hidden;if(!f.hidden) $('#newOrderInput').focus();};
-$('#newOrderForm').addEventListener('submit',ev=>{
-  ev.preventDefault();
-  const v=$('#newOrderInput').value.trim();
-  if(!v){toast('先写一个话题。');return;}
-  const t=customTask(v);
-  state.orders.push(t);$('#newOrderInput').value='';$('#newOrderForm').hidden=true;renderOrders();
-  API.post('/api/orders',orderRecord(t,'custom'));
-  toast(`新订单「${v}」已放上任务板`);
-});
+$('#newOrderBtn').onclick=()=>openOrderForm();
 
 /* ---------- modal: hire / report ---------- */
 const modal=$('#modal'),card=$('#modalCard');
@@ -1560,19 +1874,23 @@ $('#hireBtn').onclick=()=>{
   <div class="cands">${Object.entries(TYPES).map(([type,d])=>{
     const have=state.emps.filter(e=>e.type===type);
     const lock=d.needs==='server'&&!state.unlocked.server,full=d.needs==='server'?!!SERVER_DESK.owner:!freeDesk;
-    return `<div class="cand"><h4><span class="sw" style="background:${d.looks[have.length%d.looks.length][0]}"></span>${esc(d.model)}</h4>
+    return `<div class="cand"><h4><span class="pslot" data-type="${type}" data-variant="${have.length}"></span><span>${esc(d.nick)}<small>${esc(d.model)}</small></span></h4>
       <p>${esc(d.pitch)}</p><p class="label">${esc(modelStatus(type))}</p>
       <div class="traits">${d.traits.map(t=>`<span>${esc(t)}</span>`).join('')}</div>
       <dl class="stats"><dt>速度</dt><dd class="pips">${pips(d.speed)}</dd><dt>记忆力</dt><dd class="pips">${pips(d.memory)}</dd>
         <dt>已有</dt><dd>${have.length?have.map(e=>esc(e.name)).join('、'):'还没有'}</dd></dl>
       <input type="text" data-name="${type}" value="${esc(nextName(type))}" maxlength="12" aria-label="${esc(d.model)} 新员工的名字">
+      <textarea data-persona="${type}" rows="2" maxlength="300" placeholder="岗位与专长（可不填），比如：资深前端，擅长手机页面" aria-label="${esc(d.model)} 新员工的岗位与专长"></textarea>
       <button class="btn primary" data-hire="${type}"${lock||full?' disabled':''}>${lock?'需要先解锁服务器机房':full?(d.needs==='server'?'机房工位满了':'工位满了'):'录用'}</button></div>`;}).join('')}</div>
   <div class="row-btns"><button class="btn" id="closeModal">关闭</button></div>`;
   openModal(html);
+  // show the outfit the next hire of each kind will wear
+  card.querySelectorAll('.pslot[data-type]').forEach(s=>{const d=TYPES[s.dataset.type];s.appendChild(portraitEl(d.look,d.outfits[+s.dataset.variant%d.outfits.length],56));});
   card.querySelectorAll('[data-hire]').forEach(b=>b.onclick=()=>{
     const type=b.dataset.hire,name=card.querySelector(`[data-name="${type}"]`).value.trim();
     if(name&&state.emps.some(e=>e.name===name)){toast(`已经有人叫「${name}」了，换个名字。`,'warn');return;}
-    const e=hire(type,true,{name:name||undefined});closeModal();
+    const persona=card.querySelector(`[data-persona="${type}"]`).value.trim();
+    const e=hire(type,true,{name:name||undefined,persona});closeModal();
     if(e){toast(`${e.name}（${e.model}）入职了，正走向茶水间`,'ok');select(e);}
   });
   $('#closeModal').onclick=closeModal;
@@ -1882,7 +2200,7 @@ async function freshStart(){
 function restore(saved){
   for(const s of saved.employees){
     const pr=s.profile||{},type=pr.type||s.id;
-    const e=hire(type,false,{id:s.id,name:s.name,look:pr.shirt?[pr.shirt,pr.hair,pr.skin]:null});
+    const e=hire(type,false,{id:s.id,name:s.name,persona:pr.persona,variant:pr.variant});
     if(!e) continue;
     Object.assign(e,{level:s.level||1,xp:s.xp||0,speed:s.speed||e.speed,memory:s.memory||e.memory,stamina:s.stamina??100,spent:s.spent||0,prefs:s.prefs||[],bond:s.bond||{}});
     const sp=freeLounge()||LOUNGE[0];e.spot=sp;e.x=sp.x;e.y=sp.y;
@@ -1906,7 +2224,10 @@ async function boot(){
   drawBG();buildRoomLabels();
   const saved=await API.boot();
   if(API.on) MODELS=await fetch('/api/models',{cache:'no-store'}).then(r=>r.json()).catch(()=>null);
-  const models=MODELS?(MODELS.fake?'测试替身（不调用真实模型）':Object.values(MODELS.providers).map(p=>`${p.name}：${p.model}（${p.hint}）`).join('；')):'';
+  applyCustomTypes();
+  // one line per kind of employee: which agent or API really writes for them
+  const models=MODELS?(MODELS.fake?'测试替身（不调用真实模型）':Object.entries(MODELS.types).filter(([t])=>TYPES[t]).map(([t,pid])=>{
+    const p=MODELS.providers[pid];return `${TYPES[t].model} 员工 → ${p.name}${p.configured?'':`（${p.hint}）`}`;}).join('；')):'';
   $('#conn').textContent=API.on
     ?`已连接公司后端，交付写进 Git、文档库和数据库。项目分工由员工自己的模型撰写，失败时用模板。${models}`
     :'演示模式：没有连接公司后端，记录不会保存。在本机运行 node server.js 后打开 http://localhost:5300 使用完整版。';

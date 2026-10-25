@@ -1,0 +1,28 @@
+{
+  "说明": "复制成 models.json 后修改。每一项是一种可以招聘的员工，背后接一个兼容 OpenAI 接口的模型。密钥不要写在这里，写进 .env 或系统环境变量，这里只写变量名（keyEnv）。模型名和价格以服务商官网为准。",
+  "types": [
+    {
+      "type": "qwen",
+      "label": "通义千问",
+      "baseURL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "keyEnv": "DASHSCOPE_API_KEY",
+      "model": "qwen-plus",
+      "price": { "input": 0.8, "output": 2, "currency": "CNY" },
+      "names": ["千问", "小问"],
+      "traits": ["中文好", "便宜"],
+      "pitch": "中文写作我拿手。"
+    },
+    {
+      "type": "local",
+      "label": "本地模型",
+      "baseURL": "http://localhost:11434/v1",
+      "keyEnv": "OLLAMA_API_KEY",
+      "noKey": true,
+      "model": "qwen3:8b",
+      "maxTokens": 8000,
+      "names": ["阿本"],
+      "traits": ["不花钱", "在你电脑上跑"],
+      "pitch": "数据不出门。"
+    }
+  ]
+}
