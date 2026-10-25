@@ -1,0 +1,1933 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>AI 工作室</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
+<style>
+/* Layout: status bar on top; left = pixel office + order board, right = approval queue + inspector. One committed night-shift palette. */
+:root{
+  --bg:#1b1824;
+  --panel:#25212f;
+  --panel-2:#2f2a3c;
+  --line:#463e5a;
+  --text:#ebe6f2;
+  --muted:#a69fb8;
+  --accent:#f2b544;
+  --ok:#78cfa2;
+  --bad:#ee7b86;
+  --info:#7fb6e6;
+  --violet:#c3a6ea;
+  --font-pixel:"Pixelify Sans","PingFang SC","Microsoft YaHei",monospace;
+  --font-body:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{min-height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 28px}
+h1,h2,h3{margin:0;font-weight:600;text-wrap:balance}
+p{margin:0}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0;padding:0}
+button:disabled{cursor:not-allowed;opacity:.45}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.px{background:var(--panel);border:2px solid var(--line);box-shadow:4px 4px 0 rgba(0,0,0,.35)}
+.btn{background:var(--panel-2);border:2px solid var(--line);padding:5px 12px;box-shadow:inset 0 -3px 0 rgba(0,0,0,.28);
+  font-family:var(--font-pixel);font-size:14px;letter-spacing:.02em;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:var(--muted)}
+.btn:active:not(:disabled){transform:translateY(1px);box-shadow:inset 0 -1px 0 rgba(0,0,0,.28)}
+.btn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+a.btn{display:inline-block;color:var(--text);text-decoration:none}
+.brand .sub{max-width:52ch}
+.num{font-family:var(--font-pixel);font-variant-numeric:tabular-nums}
+.label{font-size:11px;letter-spacing:.08em;color:var(--muted)}
+
+/* top bar */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:14px 22px;padding:10px 14px;margin-bottom:14px}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto}
+.brand h1{font-family:var(--font-pixel);font-size:22px;letter-spacing:.04em}
+.brand .sub{font-size:12px;color:var(--muted)}
+.logo{width:28px;height:28px;flex:none;background:
+  linear-gradient(var(--accent),var(--accent)) 6px 4px/16px 6px no-repeat,
+  linear-gradient(#f0c9a0,#f0c9a0) 8px 10px/12px 8px no-repeat,
+  linear-gradient(var(--ok),var(--ok)) 4px 18px/20px 8px no-repeat;image-rendering:pixelated}
+.clock{display:flex;flex-direction:column;align-items:flex-start}
+.clock .num{font-size:22px;line-height:1}
+.funds{display:flex;flex-direction:column;gap:3px;min-width:170px}
+.funds .row{display:flex;align-items:center;gap:8px}
+.bar{flex:1;height:10px;background:var(--bg);border:2px solid var(--line);position:relative;min-width:90px}
+.bar i{position:absolute;inset:0 auto 0 0;background:var(--accent);width:100%}
+.funds b{font-size:16px}
+.speed{display:flex;flex-direction:column;gap:3px}
+.speed .group{display:flex;gap:4px}
+.speed .hint{font-size:11px;color:var(--muted)}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+
+/* main layout */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:14px;align-items:start}
+.left,.right{display:flex;flex-direction:column;gap:14px;min-width:0}
+@media (max-width:980px){.layout{grid-template-columns:minmax(0,1fr)}}
+
+.stage-wrap{padding:6px;position:relative}
+.stage{position:relative;width:100%;aspect-ratio:384/224;max-width:100%;background:#57506a}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:manipulation}
+.overlay{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.room-label{position:absolute;font-size:clamp(8px,1.15vw,11px);padding:1px 5px;background:rgba(27,24,36,.72);color:var(--text);white-space:nowrap;letter-spacing:.06em}
+.room-label.locked{color:var(--accent)}
+.you{position:absolute;transform:translate(-50%,0);font-family:var(--font-pixel);font-size:clamp(8px,1.1vw,11px);color:var(--accent);white-space:nowrap}
+.tag{position:absolute;transform:translate(-50%,-100%);display:flex;align-items:center;gap:3px;font-size:clamp(8px,1.1vw,11px);
+  padding:0 4px;background:rgba(27,24,36,.82);border:1px solid var(--line);white-space:nowrap;line-height:1.5}
+.tag.sel{border-color:var(--accent)}
+.tag .st{font-family:var(--font-pixel);font-weight:700;min-width:0}
+.tag .st:empty{display:none}
+.tag .st.warn{color:var(--bg);background:var(--accent);padding:0 3px;animation:bob .7s steps(2) infinite}
+.tag .st.work{color:var(--info)}
+.tag .st.meet{color:var(--ok)}
+.tag .st.tired{color:var(--bad)}
+@keyframes bob{50%{transform:translateY(-2px)}}
+.bubble{position:absolute;transform:translate(-50%,-100%);max-width:min(46%,210px);padding:4px 7px;font-size:clamp(9px,1.15vw,12px);line-height:1.4;
+  background:var(--text);color:var(--bg);border:2px solid var(--bg);box-shadow:2px 2px 0 rgba(0,0,0,.35);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.bubble.think{background:#d9d3e6;font-style:italic}
+.bubble.tool{background:#cfe6f5;font-family:ui-monospace,Consolas,monospace}
+.proto-flag{position:absolute;right:8px;bottom:8px;font-size:11px;color:var(--muted);background:rgba(27,24,36,.8);padding:1px 6px;pointer-events:none}
+@media (max-width:600px){.proto-flag{display:none}}
+
+/* focus view */
+.focus{padding:12px;display:flex;flex-direction:column;gap:10px}
+.focus .head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.focus h2{font-family:var(--font-pixel);font-size:18px}
+.table-scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:13px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:12px;letter-spacing:.06em}
+td.num{white-space:nowrap}
+
+/* order board */
+.board{padding:12px;display:flex;flex-direction:column;gap:10px}
+.board-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.board-head h2,.queue h2,.tabs{font-family:var(--font-pixel);font-size:18px}
+.board-head p{color:var(--muted);font-size:13px;flex:1;min-width:200px}
+.orders{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.order{background:var(--panel-2);border:2px solid var(--line);padding:10px 12px;display:flex;flex-direction:column;gap:6px;cursor:grab;touch-action:none;user-select:none;
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.25)}
+.order:hover{border-color:var(--accent)}
+.order h3{font-size:15px}
+.order p{font-size:13px;color:var(--muted)}
+.order .meta{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted);margin-top:auto}
+.order .meta .grab{color:var(--accent)}
+.order.dragging{opacity:.4}
+.new-order{display:flex;gap:8px;flex-wrap:wrap}
+.new-order input{flex:1;min-width:180px;background:var(--bg);border:2px solid var(--line);color:var(--text);padding:6px 10px;font:inherit}
+.empty{color:var(--muted);font-size:13px}
+
+.ghost{position:fixed;left:0;top:0;z-index:50;pointer-events:none;background:var(--accent);color:var(--bg);padding:5px 10px;font-weight:600;font-size:13px;
+  border:2px solid var(--bg);box-shadow:3px 3px 0 rgba(0,0,0,.4);transform:translate(-50%,-130%);white-space:nowrap}
+
+/* queue */
+.queue{padding:12px;display:flex;flex-direction:column;gap:10px}
+.ask{background:var(--panel-2);border:2px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:7px}
+.ask.high{border-color:var(--accent)}
+.ask header{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
+.pill{font-size:11px;padding:0 6px;border:1px solid currentColor;letter-spacing:.06em}
+.ask.low .pill{color:var(--ok)}
+.ask.high .pill{color:var(--accent)}
+.ask h3{font-size:15px}
+.ask p{font-size:13px;color:var(--muted)}
+.opts{display:flex;flex-direction:column;gap:6px}
+.opts.row{flex-direction:row;flex-wrap:wrap}
+.opt{text-align:left;background:var(--bg);border:2px solid var(--line);padding:6px 9px;font-size:13px}
+.opt:hover{border-color:var(--text)}
+.opt.yes{border-color:var(--ok);color:var(--ok)}
+.opt.no{border-color:var(--bad);color:var(--bad)}
+.opt b{display:block;font-size:11px;color:var(--muted);font-weight:400;letter-spacing:.04em}
+.link{color:var(--info);font-size:12px;text-align:left;text-decoration:underline;text-underline-offset:3px}
+
+/* inspector */
+.inspector{padding:12px;display:flex;flex-direction:column;gap:10px}
+.tabs{display:flex;gap:4px;border-bottom:2px solid var(--line)}
+.tabs button{padding:4px 10px;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-2px}
+.tabs button[aria-selected="true"]{color:var(--text);border-bottom-color:var(--accent)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{display:flex;align-items:center;gap:6px;border:2px solid var(--line);padding:2px 8px;font-size:13px;background:var(--panel-2)}
+.chip[aria-pressed="true"]{border-color:var(--accent)}
+.sw{width:10px;height:10px;flex:none;border:1px solid rgba(0,0,0,.4)}
+.emp-head{display:flex;gap:10px;align-items:center}
+.emp-head .sw{width:26px;height:26px}
+.emp-head h3{font-size:17px}
+.emp-head p{font-size:12px;color:var(--muted)}
+.traits{display:flex;gap:5px;flex-wrap:wrap}
+.traits span{font-size:12px;padding:0 6px;background:var(--bg);border:1px solid var(--line)}
+.stats{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:13px;align-items:center}
+.stats dt{color:var(--muted)}
+.stats dd{margin:0}
+.pips{font-family:var(--font-pixel);letter-spacing:2px;color:var(--accent)}
+.pips i{font-style:normal;color:var(--line)}
+.stam{display:flex;align-items:center;gap:8px}
+.stam .bar i{background:var(--ok)}
+.stam.low .bar i{background:var(--bad)}
+.now{font-size:13px;background:var(--bg);border:1px solid var(--line);padding:6px 8px}
+.now b{color:var(--accent);font-weight:600}
+.log{list-style:none;margin:0;padding:0;max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;font-size:13px;
+  border-top:1px solid var(--line);padding-top:8px}
+.log li{display:grid;grid-template-columns:38px minmax(0,1fr);gap:2px 8px}
+.log .t{color:var(--muted);font-size:11px;padding-top:2px}
+.log .x{min-width:0;overflow-wrap:anywhere}
+.log .k{font-size:11px;padding:0 4px;margin-right:4px;border:1px solid currentColor}
+.log .w{color:var(--muted);margin-right:4px}
+.log .c{color:var(--muted);font-size:11px;margin-left:6px}
+.log .think .x{color:var(--muted);font-style:italic}
+.log .tool .k{color:var(--info)}
+.log .tool .x{font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.log .ask .k{color:var(--accent)}
+.log .boss .k{color:var(--accent)}
+.log .boss .x{color:var(--accent)}
+.log .pass .k{color:var(--violet)}
+.log .pass .x{color:var(--violet)}
+.log .sys .k{color:var(--ok)}
+.log .sys .x{color:var(--ok)}
+.row-btns{display:flex;gap:6px;flex-wrap:wrap}
+
+.wall{display:flex;flex-direction:column;gap:8px}
+.wall details{background:var(--panel-2);border:2px solid var(--line);padding:8px 10px}
+.wall summary{cursor:pointer;font-weight:600}
+.wall summary span{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+.wall details p{font-size:13px;margin-top:6px}
+.wall ul{margin:6px 0 0;padding-left:18px;font-size:13px;color:var(--accent)}
+
+/* menu, modal, toast */
+.menu{position:absolute;z-index:40;min-width:230px;padding:6px;display:flex;flex-direction:column;gap:4px;background:var(--panel)}
+.menu .lbl{font-size:12px;color:var(--muted);padding:2px 6px}
+.menu button{text-align:left;padding:6px 8px;border:2px solid transparent;font-size:13px;display:flex;align-items:center;gap:8px}
+.menu button:hover:not(:disabled){border-color:var(--accent)}
+.menu small{color:var(--muted);margin-left:auto;padding-left:10px}
+.modal{position:fixed;inset:0;z-index:60;background:rgba(10,8,16,.7);display:grid;place-items:center;
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.modal-card{width:min(640px,100%);max-height:100%;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px}
+.modal-card h2{font-family:var(--font-pixel);font-size:22px}
+.modal-card h3{font-size:14px;color:var(--muted);letter-spacing:.06em}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.bonds{display:flex;flex-direction:column;gap:3px;font-size:13px}
+.bonds div{display:flex;align-items:center;gap:8px}
+.bonds small{color:var(--muted);margin-left:auto}
+.kpis div{background:var(--panel-2);border:2px solid var(--line);padding:8px 10px}
+.kpis .num{font-size:24px;display:block}
+.kpis span{font-size:12px;color:var(--muted)}
+@media (max-width:520px){.kpis{grid-template-columns:minmax(0,1fr)}}
+.modal-card ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:13px}
+.cands{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.cand{background:var(--panel-2);border:2px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:6px}
+.cand h4{margin:0;font-size:15px;display:flex;align-items:center;gap:6px}
+.cand p{font-size:12px;color:var(--muted)}
+.cand .btn{margin-top:auto}
+.cand input{background:var(--bg);border:2px solid var(--line);color:var(--text);padding:4px 8px;font:inherit;font-size:13px;width:100%}
+.toasts{position:fixed;z-index:70;left:50%;bottom:max(16px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;align-items:center;width:min(520px,calc(100% - 32px));pointer-events:none}
+.toast{background:var(--panel);border:2px solid var(--line);padding:7px 12px;font-size:13px;box-shadow:3px 3px 0 rgba(0,0,0,.4)}
+.toast.ok{border-color:var(--ok)}
+.toast.warn{border-color:var(--accent)}
+/* review, growth, onboarding */
+.ask.review{border-color:var(--violet)}
+.ask.review .pill{color:var(--violet)}
+.dec{margin:0;padding-left:18px;font-size:12px;color:var(--accent)}
+.cost{font-size:12px;color:var(--muted)}
+.reasons{display:flex;flex-direction:column;gap:6px}
+.say-form{display:flex;gap:6px}
+.say-form input{flex:1;min-width:0;background:var(--bg);border:2px solid var(--line);color:var(--text);padding:5px 8px;font:inherit;font-size:13px}
+.prefs ul{margin:4px 0 0;padding-left:18px;font-size:13px}
+.bar.xp i{background:var(--violet)}
+.bubble.lv{background:var(--accent);font-weight:700;font-style:normal}
+.ghost.ok{background:var(--ok)}
+.ghost.bad{background:var(--bad)}
+.menu button[aria-pressed="true"]{border-color:var(--accent);background:var(--panel-2)}
+.menu .btn.primary{justify-content:center;margin-top:4px}
+.stars{color:var(--accent);font-weight:400;margin-left:4px}
+.pill.new{color:var(--accent);margin-right:4px;vertical-align:2px}
+.goals{padding:12px;display:flex;flex-direction:column;gap:8px}
+.goals h2{font-family:var(--font-pixel);font-size:18px;display:flex;justify-content:space-between;align-items:baseline}
+.goals h2 .num{font-size:14px;color:var(--muted)}
+.goals ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;font-size:13px}
+.goals li{display:flex;gap:8px;align-items:center}
+.goals li i{width:12px;height:12px;border:2px solid var(--line);flex:none}
+.goals li.done{color:var(--muted);text-decoration:line-through}
+.goals li.done i{background:var(--ok);border-color:var(--ok)}
+/* work planner */
+.modal-card.wide{width:min(1000px,100%)}
+.field{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.field input,.field textarea,.role input,.role textarea,.role select{background:var(--bg);border:2px solid var(--line);color:var(--text);padding:6px 8px;font:inherit;font-size:13px;width:100%;min-width:0}
+.tpl{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--muted)}
+.roles{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:10px}
+.role{background:var(--panel-2);border:2px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.role-head{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,120px) auto;gap:6px;align-items:center}
+.role-head .num{font-family:var(--font-pixel);font-size:18px;color:var(--accent);min-width:16px}
+.role-head button{padding:2px 9px;color:var(--muted);border:2px solid var(--line)}
+.role-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.role-row label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);flex:1;min-width:140px}
+.role-row label.chk{flex-direction:row;align-items:center;gap:6px;flex:none;min-width:0;font-size:13px;color:var(--text)}
+.role-row label.chk input{width:auto}
+.deps{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.dep{font-size:12px;padding:1px 7px;border:1px solid var(--line);color:var(--muted)}
+.dep[aria-pressed="true"]{border-color:var(--violet);color:var(--violet)}
+.stages{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}
+.stg{background:var(--bg);border:2px solid var(--line);padding:6px 8px;display:flex;flex-direction:column;gap:4px;min-width:140px}
+.stg .r{font-size:13px}
+.stg .r b{color:var(--violet);font-weight:400}
+.arrow{align-self:center;color:var(--muted);font-family:var(--font-pixel)}
+.export summary{cursor:pointer;font-size:13px;color:var(--info)}
+.export textarea{width:100%;background:var(--bg);color:var(--text);border:2px solid var(--line);font-family:ui-monospace,Consolas,monospace;font-size:12px;padding:8px;margin:6px 0}
+.plan-err{color:var(--bad);font-size:13px}
+.proj{background:var(--panel-2);border:2px solid var(--line);padding:8px 10px;display:flex;flex-direction:column;gap:6px}
+.proj ol{margin:0;padding-left:20px;font-size:13px;display:flex;flex-direction:column;gap:3px}
+.st-wait{color:var(--muted)}
+.st-run{color:var(--info)}
+.st-writing{color:var(--violet)}
+.st-gate{color:var(--accent)}
+a.opt{color:var(--info);text-decoration:none}
+.st-done{color:var(--ok)}
+@media (prefers-reduced-motion:reduce){.tag .st.warn{animation:none}}
+</style>
+
+<header class="top px">
+  <div class="brand">
+    <span class="logo" aria-hidden="true"></span>
+    <div><h1>AI 工作室</h1><p class="sub" id="conn">正在连接公司后端…</p></div>
+  </div>
+  <div class="clock"><span class="label" id="dayLabel">第 1 天</span><span class="num" id="clock">09:12</span></div>
+  <div class="funds">
+    <span class="label">资金（Token 预算）</span>
+    <div class="row"><div class="bar"><i id="fundsBar"></i></div><b class="num" id="funds">¥50.00</b></div>
+  </div>
+  <div class="speed">
+    <span class="label">时间 · 空格暂停，1 / 2 切速度</span>
+    <div class="group" role="group" aria-label="时间控制">
+      <button class="btn" data-speed="0" aria-pressed="false">暂停</button>
+      <button class="btn" data-speed="1" aria-pressed="true">1x</button>
+      <button class="btn" data-speed="3" aria-pressed="false">快进</button>
+    </div>
+    <span class="hint" id="speedHint">1x：每个确认都由你来点</span>
+  </div>
+  <div class="actions">
+    <button class="btn primary" id="planBtn">安排工作</button>
+    <a class="btn" id="sysLink" href="/company.html" target="_blank" rel="noopener" hidden>公司系统</a>
+    <button class="btn" id="hireBtn">招聘</button>
+    <button class="btn" id="focusBtn" aria-pressed="false">专注视图</button>
+    <button class="btn" id="endDayBtn">下班结算</button>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="left">
+    <div class="stage-wrap px">
+      <div class="stage" id="stage">
+        <canvas id="cv" width="384" height="224" aria-label="像素办公室：点员工查看记录，把订单拖到员工或会议室上分配任务"></canvas>
+        <div class="overlay" id="overlay"></div>
+        <span class="proto-flag">模拟数据</span>
+      </div>
+      <div class="focus" id="focusView" hidden></div>
+    </div>
+
+    <section class="board px" aria-labelledby="ordersTitle">
+      <div class="board-head">
+        <h2 id="ordersTitle">订单</h2>
+        <p>拖到<b>员工</b>身上：TA 单独负责，卡住会找同事帮忙。拖到<b>工位区空地</b>：两人分工，互相审查。拖进<b>会议室</b>：两人先讨论再定稿。点一下订单也能直接分配。</p>
+        <button class="btn" id="newOrderBtn">新订单</button>
+      </div>
+      <form class="new-order" id="newOrderForm" hidden>
+        <input id="newOrderInput" type="text" maxlength="40" placeholder="写一个话题，比如：下周团建去哪" aria-label="新订单话题">
+        <button class="btn primary" type="submit">放上任务板</button>
+      </form>
+      <div class="orders" id="orders"></div>
+    </section>
+  </section>
+
+  <aside class="right">
+    <section class="goals px" id="goals" aria-label="上手任务"></section>
+    <section class="queue px" aria-labelledby="queueTitle">
+      <h2 id="queueTitle">等你确认<span id="qCount"></span></h2>
+      <div id="queue" class="opts"></div>
+    </section>
+    <section class="inspector px">
+      <div class="tabs" role="tablist">
+        <button role="tab" id="tabStaffBtn" aria-selected="true">员工</button>
+        <button role="tab" id="tabProjBtn" aria-selected="false">项目<span id="projCount"></span></button>
+        <button role="tab" id="tabWallBtn" aria-selected="false">作品墙<span id="wallCount"></span></button>
+      </div>
+      <div id="tabStaff"></div>
+      <div id="tabProj" class="wall" hidden></div>
+      <div id="tabWall" class="wall" hidden></div>
+    </section>
+  </aside>
+</main>
+
+<div class="ghost" id="ghost" hidden></div>
+<div class="menu px" id="menu" hidden></div>
+<div class="modal" id="modal" hidden><div class="modal-card px" id="modalCard" role="dialog" aria-modal="true"></div></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script>
+(()=>{
+const W=384,H=224,CY=122;
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let uidN=0;const uid=()=>'id'+(++uidN);
+const yuan=n=>'¥'+n.toFixed(2);
+
+/* ---------- company backend: records everything; without it the page runs as an offline demo ---------- */
+const API={on:false,buf:{activity:[],ledger:[]},empDirty:false,
+  async boot(){
+    try{const r=await fetch('/api/state',{cache:'no-store'});if(!r.ok) return null;const s=await r.json();if(!s||!Array.isArray(s.employees)) return null;this.on=true;return s;}
+    catch{return null;}
+  },
+  post(url,body){
+    if(!this.on) return Promise.resolve(null);
+    return fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      .then(r=>r.json().then(d=>r.ok?d:Promise.reject(new Error(d.error||r.status))))
+      .catch(err=>{console.warn(err);toast('写入公司系统失败：'+err.message,'warn');return null;});
+  },
+  activity(e,entry){
+    if(!this.on) return;
+    const a=this.buf.activity,last=a[a.length-1],text=(entry.who?entry.who+'：':'')+entry.text;
+    // the same line logged to several teammates is one event
+    if(last&&last.text===text&&last.time===entry.t){if(!last.actor.includes(e.name)) last.actor+='、'+e.name;return;}
+    a.push({actor:e.name,kind:entry.kind,text,task:e.job?.task.title||null,day:state.day,time:entry.t});
+  },
+  ledger(e,tokens,cost){if(this.on) this.buf.ledger.push({employee:e.id,tokens,cost,task:e.job?.task.title||null,day:state.day});},
+  flush(){
+    if(!this.on) return;
+    const b=this.buf;
+    if(b.activity.length||b.ledger.length){this.buf={activity:[],ledger:[]};this.post('/api/events',b);}
+    if(this.empDirty){this.empDirty=false;this.post('/api/employees/sync',state.emps.map(empSnapshot));}
+  },
+};
+setInterval(()=>API.flush(),1500);
+function empSnapshot(e){
+  return {id:e.id,name:e.name,model:e.model,level:e.level,xp:e.xp,speed:e.speed,memory:e.memory,stamina:Math.round(e.stamina),spent:+e.spent.toFixed(4),
+    prefs:e.prefs,bond:e.bond,profile:{type:e.type,shirt:e.shirt,hair:e.hair,skin:e.skin,traits:e.traits,price:e.price,needs:e.needs||null,pitch:e.pitch}};
+}
+// someone writing a deliverable or standing at the door can't take new work
+const busy=e=>!!(e.job||e.writing||e.waiting);
+let MODELS=null;
+// the model that really writes for this employee, or null when none is connected
+function modelLabel(e){
+  if(!MODELS) return null;
+  if(MODELS.fake) return '测试替身';
+  const p=MODELS.providers[MODELS.types[e.type]];
+  return p?p.model:null;
+}
+function modelStatus(type){
+  if(!MODELS) return '演示模式：不调用模型';
+  if(MODELS.fake) return '模型：测试替身';
+  const p=MODELS.providers[MODELS.types[type]];
+  return p?`模型：${p.model}（${p.hint}）`:'还没接入真实模型，交付物用模板';
+}
+function chargeReal(e,cny){state.funds-=cny;e.spent+=cny;state.stats.spent+=cny;API.empDirty=true;}
+const orderRecord=(t,source)=>({id:t.id,title:t.title,brief:t.brief,est:t.est,task_key:TASKS.includes(t)?t.id:null,source});
+function logArtifacts(e,arts){
+  const fmt=a=>({llm:`用 ${a.model} 写完：输入 ${a.input_tokens} / 输出 ${a.output_tokens} token${a.cny!=null?`，约 ¥${a.cny.toFixed(2)}`:''}，用时 ${Math.round(a.ms/1000)} 秒`,
+    fallback:`模型没写成，改用模板：${a.reason}`,db_error:`业务数据库没建成：${a.reason}`,doc:`文档存入文档库：${a.path}`,commit:`提交 ${a.hash} 到代码库 ${a.repo} 的 ${a.branch} 分支${a.files?`（${a.files} 个文件）`:''}`,
+    pr:`发起合并请求 #${a.id}「${a.title}」，审查人：${a.reviewer}`,merge:`合并请求 #${a.pr}「${a.title}」已合并到 main（${a.hash}）`,
+    conflict:`合并请求 #${a.pr} 有冲突，需要处理`,test:`跑了自动化测试：通过 ${a.pass} 项，失败 ${a.fail} 项`,db:`建立业务数据库：${a.name}`,tag:`打上发布标签 ${a.name}`})[a.type];
+  for(const a of arts||[]){const t=fmt(a);if(t) addLog(e,{kind:'tool',text:t});}
+}
+
+/* ---------- world layout ---------- */
+const ROOMS={
+  meeting:{x:0,y:16,w:112,h:88,label:'会议室',lx:3,ly:17},
+  work:{x:116,y:16,w:164,h:88,label:'工位区',lx:252,ly:17},
+  boss:{x:284,y:16,w:100,h:88,label:'老板办公室',lx:287,ly:17},
+  server:{x:0,y:142,w:120,h:82,label:'服务器机房',lx:3,ly:212,lock:2,unlockText:'员工可以在这里运行代码、改文件。现在能招聘「小码」了。'},
+  lounge:{x:124,y:140,w:136,h:84,label:'茶水间',lx:127,ly:212},
+  archive:{x:264,y:142,w:120,h:82,label:'档案室',lx:267,ly:212,lock:3,unlockText:'员工动手前会先查你放进来的资料。'},
+};
+const DESKS=[];
+[26,62].forEach(dy=>[126,174,222].forEach(dx=>DESKS.push({x:dx,y:dy,owner:null,seat:{x:dx+14,y:dy+7,exit:[{x:dx+38,y:dy+7}],cx:dx+38}})));
+const SERVER_DESK={x:16,y:179,owner:null,server:true,seat:{x:30,y:186,exit:[{x:61,y:186}],cx:61}};
+const MEET=[{x:24,y:58},{x:88,y:58}].map(p=>({...p,exit:[{x:p.x,y:98},{x:56,y:98}],cx:56}));
+const QUEUE=[303,285,267,249,231].map(x=>({x,y:117,exit:[],cx:x}));
+const LOUNGE=[{x:138,y:168,exit:[],cx:138},{x:176,y:194,exit:[{x:138,y:194}],cx:138},{x:212,y:208,exit:[{x:138,y:208}],cx:138},
+  {x:248,y:176,exit:[],cx:248},{x:246,y:206,exit:[],cx:246},{x:160,y:216,exit:[{x:138,y:216}],cx:138},{x:230,y:194,exit:[],cx:248}];
+function route(a,b){return [...a.exit,{x:a.cx,y:CY},{x:b.cx,y:CY},...[...b.exit].reverse(),{x:b.x,y:b.y}]}
+
+/* ---------- staff ---------- */
+// kinds of AI you can hire; every hire of a kind is a separate person (own name, preferences, experience) on that kind's model
+const TYPES={
+  claude:{model:'Claude',names:['克劳德','克莱尔','柯蓝','可乐'],traits:['严谨','爱写注释','擅长长文档'],speed:3,memory:5,price:0.12,pitch:'先想清楚再动手。',
+    looks:[['#d9895c','#3a2a2a','#f0c9a0'],['#c96f8a','#5a3a2a','#e7b48c'],['#e0a050','#22232b','#f3d1ad']]},
+  gpt:{model:'GPT',names:['阿 G','小 G','吉皮','阿特'],traits:['手快','点子多','偶尔粗心'],speed:4,memory:4,price:0.10,pitch:'给我个方向，马上出稿。',
+    looks:[['#5fae94','#22232b','#e7b48c'],['#4f9ab0','#3a2a2a','#f0c9a0'],['#7fbf6a','#5a3a2a','#d9a27a']]},
+  deepseek:{model:'DeepSeek',names:['阿深','深深','小深','深蓝'],traits:['便宜','擅长代码和数学','话少'],speed:3,memory:3,price:0.03,pitch:'工资低，活不少干。',
+    looks:[['#6b8fd6','#1f2230','#f3d1ad'],['#5a6fc0','#3a2a2a','#e7b48c'],['#7aa6e8','#22232b','#d9a27a']]},
+  gemini:{model:'Gemini',names:['双子','小双','星河'],traits:['读得多','擅长整理资料','爱列表格'],speed:4,memory:5,price:0.08,pitch:'资料再长也能读完。',
+    looks:[['#b99ae0','#5a3a2a','#d9a27a'],['#a07ad0','#22232b','#f0c9a0']]},
+  codex:{model:'Codex（本地）',names:['小码','码哥'],traits:['能改文件','能跑测试','只在机房干活'],speed:3,memory:4,price:0.10,needs:'server',pitch:'直接在你电脑上改代码。',
+    looks:[['#d8b84e','#2b2b2b','#eec29a']]},
+};
+function nextName(type){
+  const used=new Set(state.emps.map(e=>e.name)),t=TYPES[type];
+  return t.names.find(n=>!used.has(n))||`${t.names[0]} ${state.emps.filter(e=>e.type===type).length+1}号`;
+}
+
+/* ---------- scripted orders (simulated) ---------- */
+const TASKS=[
+{id:'t1',title:'竞品分析：AI 写作工具',brief:'对比主流 AI 写作工具的价格、用户和功能，找出切入点。',est:'约 ¥1.5',
+ solo:[
+  {k:'think',t:'先定对比维度：价格、目标用户、核心功能、差异点。',tok:900},
+  {k:'tool',t:'搜索「AI 写作工具 对比」，筛出 14 个候选',tok:1600},
+  {k:'ask',risk:'low',title:'要打开 9 个竞品官网读定价页',detail:'预计多花 ¥0.60。不打开的话只能用搜索摘要里的价格，可能过时。',
+   opts:[{label:'批准',then:'好，开始逐个读定价页。'},{label:'驳回',then:'明白，只用搜索摘要，报告里会注明价格可能过时。'}]},
+  {k:'help',t:'帮我看看这几个对比维度够不够？',reply:'再加一个「留存手段」，很多工具靠模板库留人。',tok:700},
+  {k:'tool',t:'读取定价页 9/9，整理成表',tok:2800},
+  {k:'say',t:'发现：大部分工具在「长文前后一致」上做得不好，可以从这里切入。',tok:1200},
+  {k:'tool',t:'生成对比表（9 行 × 6 列）和结论页',tok:2000}],
+ meet:[
+  {k:'A',t:'我先列维度：价格、目标用户、核心功能、差异点。',tok:800},
+  {k:'B',t:'再加一个「留存手段」，很多工具靠模板库把人留住。',tok:700},
+  {k:'A',t:'同意。我查前 5 家，你查后 4 家？',tok:500},
+  {k:'B',t:'好。我这边有两家半年没更新了，要不要放进报告？',tok:1500},
+  {k:'ask',risk:'high',title:'分歧：停更的两家要不要放进报告？',detail:'两人意见不同，需要你拍板。',
+   opts:[{by:'A',label:'保留，标注「已停更」，说明市场在洗牌'},{by:'B',label:'直接剔除，避免干扰结论'}]},
+  {k:'A',t:'收到，按老板的决定整理。',tok:600},
+  {k:'B',t:'对比表合并完成，价格我又核对了一遍。',tok:1800}],
+ team:[
+  {k:'A',kind:'think',t:'我搭对比框架，你去搜竞品名单？',tok:600},
+  {k:'B',kind:'tool',t:'搜索「AI 写作工具 对比」，筛出 14 个候选',tok:1600},
+  {k:'pass',from:'B',to:'A',t:'14 个候选名单',tok:200},
+  {k:'A',kind:'tool',t:'按维度填表，读定价页 9/9',tok:2600},
+  {k:'pass',from:'A',to:'B',t:'对比表初稿，请你审一遍',tok:200},
+  {k:'B',kind:'say',t:'第 4 行价格是去年的；第 7 家已经改成按字数收费了。',tok:1100},
+  {k:'pass',from:'B',to:'A',t:'2 条修改意见',tok:150,fix:true},
+  {k:'A',kind:'tool',t:'按意见修正，重新核对价格',tok:1300},
+  {k:'B',kind:'say',t:'复查通过，可以交付。',tok:500}],
+ out:{title:'《AI 写作工具竞品分析》',body:'9 家竞品对比表（价格 / 用户 / 功能 / 差异点 / 留存手段），附 3 个可切入的机会点：长文前后一致、团队术语表、引用溯源。'}},
+{id:'t2',title:'新功能 PRD：团队共享笔记',brief:'给 5 到 20 人的小团队做共享笔记，先写第一版需求文档。',est:'约 ¥1.2',
+ solo:[
+  {k:'think',t:'用户是 5–20 人的小团队，核心场景是会议纪要和知识沉淀。',tok:800},
+  {k:'say',t:'拆成三块：共享空间、权限、评论。',tok:600},
+  {k:'tool',t:'读取你上传的用户访谈记录（3 份）',tok:2600},
+  {k:'help',t:'这三份访谈，你觉得最痛的点是哪个？',reply:'找东西难。三个人都说过「不知道纪要放哪了」。',tok:800},
+  {k:'ask',risk:'high',title:'权限模型选哪种？',detail:'两种都能做，影响后面一半的设计。',
+   opts:[{label:'按空间授权（简单，能先上线）',then:'好，按空间授权写，文档级权限放进「以后再做」。'},{label:'按文档授权（灵活，工作量翻倍）',then:'好，按文档授权写，我会把工期风险标出来。'}]},
+  {k:'tool',t:'写入 PRD 草稿，共 2,400 字',tok:3000},
+  {k:'say',t:'文末列了 4 个待定问题，等你有空看看。',tok:500}],
+ meet:[
+  {k:'A',t:'用户是 5–20 人的小团队，核心场景是会议纪要。',tok:700},
+  {k:'B',t:'第一版就该做实时协同编辑，不然没竞争力。',tok:600},
+  {k:'A',t:'实时协同成本很高，第一版可以先做「评论 + 版本历史」。',tok:900},
+  {k:'B',t:'但访谈里 2/3 的人都提到了同时编辑。',tok:800},
+  {k:'ask',risk:'high',title:'分歧：第一版做不做实时协同？',detail:'一个看成本，一个看用户反馈。',
+   opts:[{by:'A',label:'先不做，评论 + 版本历史够用'},{by:'B',label:'要做，这是核心卖点'}]},
+  {k:'A',t:'收到，按这个方向写。',tok:500},
+  {k:'B',t:'验收标准我补上了。',tok:1600}],
+ team:[
+  {k:'A',kind:'think',t:'我写功能和场景，你写验收标准和边界情况。',tok:600},
+  {k:'B',kind:'tool',t:'读取用户访谈记录（3 份），提炼出 12 条需求',tok:2400},
+  {k:'pass',from:'B',to:'A',t:'12 条需求清单',tok:200},
+  {k:'A',kind:'tool',t:'写 PRD 主体，2,100 字',tok:2800},
+  {k:'B',kind:'say',t:'第一版应该做实时协同，访谈里 2/3 的人提过。',tok:700},
+  {k:'ask',risk:'high',title:'分歧：第一版做不做实时协同？',detail:'主写觉得成本太高，搭档觉得是核心卖点。',
+   opts:[{by:'A',label:'先不做，评论 + 版本历史够用'},{by:'B',label:'要做，这是核心卖点'}]},
+  {k:'pass',from:'A',to:'B',t:'PRD 主体，请补验收标准',tok:200},
+  {k:'B',kind:'tool',t:'补上验收标准 18 条、边界情况 6 条',tok:1900},
+  {k:'pass',from:'B',to:'A',t:'完整版 PRD',tok:150},
+  {k:'A',kind:'say',t:'通读一遍，没问题，交付。',tok:600}],
+ out:{title:'《团队共享笔记 PRD v0.1》',body:'目标用户、3 个核心场景、功能清单（分 P0 / P1）、权限设计、4 个待定问题。'}},
+{id:'t3',title:'写一篇文章：当 AI 开始互相开会',brief:'面向不写代码的读者，讲多 AI 协作是怎么回事。',est:'约 ¥0.9',
+ solo:[
+  {k:'think',t:'读者不写代码，少用术语，多举例子。',tok:600},
+  {k:'say',t:'标题备选三个，先用《当 AI 开始互相开会》。',tok:500},
+  {k:'tool',t:'写正文初稿，1,800 字',tok:2600},
+  {k:'help',t:'帮我读一下开头，会不会太慢？',reply:'有点慢，把第三段的例子挪到最前面。',tok:900},
+  {k:'ask',risk:'low',title:'文中提到了 2 个真实产品名',detail:'发布前确认一下能不能点名。驳回的话我改成泛称。',
+   opts:[{label:'批准',then:'好，保留产品名。'},{label:'驳回',then:'明白，改成「某款写作工具」这样的泛称。'}]},
+  {k:'say',t:'开头加了一个小故事，结尾留了一个互动问题。',tok:900}],
+ meet:[
+  {k:'A',t:'我写正文，你负责挑刺？',tok:400},
+  {k:'B',t:'行。开头太慢了，第三段才进正题。',tok:900},
+  {k:'A',t:'改了，把例子挪到开头。',tok:1400},
+  {k:'B',t:'标题我建议更直接：《我让两个 AI 一起上班》。',tok:500},
+  {k:'ask',risk:'high',title:'分歧：用哪个标题？',detail:'两人各坚持一个。',
+   opts:[{by:'A',label:'《当 AI 开始互相开会》'},{by:'B',label:'《我让两个 AI 一起上班》'}]},
+  {k:'A',t:'好，按这个改标题。',tok:300}],
+ team:[
+  {k:'B',kind:'say',t:'我先列大纲和 3 个标题，你来写正文。',tok:700},
+  {k:'pass',from:'B',to:'A',t:'大纲 + 3 个备选标题',tok:200},
+  {k:'A',kind:'tool',t:'写正文初稿，1,800 字',tok:2600},
+  {k:'pass',from:'A',to:'B',t:'初稿，帮我挑刺',tok:200},
+  {k:'B',kind:'say',t:'开头太慢，第三段才进正题；有两处术语没解释。',tok:1000},
+  {k:'pass',from:'B',to:'A',t:'3 条修改意见',tok:150,fix:true},
+  {k:'A',kind:'tool',t:'改稿：例子挪到开头，补上术语解释',tok:1500},
+  {k:'ask',risk:'low',title:'文中提到了 2 个真实产品名',detail:'发布前确认一下能不能点名。驳回的话改成泛称。',
+   opts:[{label:'批准',then:'好，保留产品名。'},{label:'驳回',then:'明白，改成泛称。'}]},
+  {k:'pass',from:'A',to:'B',t:'二稿',tok:150},
+  {k:'B',kind:'say',t:'二审通过。',tok:400}],
+ out:{title:'《当 AI 开始互相开会》初稿',body:'1,800 字。开头一个小故事，中间三个例子，结尾一个互动问题。'}},
+{id:'t4',title:'修复：登录页偶尔报错',brief:'用户反馈登录时偶尔白屏，日志里有 TypeError。',est:'约 ¥1.1',
+ solo:[
+  {k:'tool',t:"读取报错日志：TypeError: cannot read 'token' of undefined",tok:1800},
+  {k:'think',t:'登录接口超时后返回了空对象，前端没做判断。',tok:900},
+  {k:'help',t:'你见过超时返回空对象这种情况吗？',reply:'见过，网关超时会把错误体吞掉，前端得兜底。',tok:700},
+  {k:'ask',risk:'high',title:'要修改 src/auth/login.ts 第 42 行',detail:'会直接改动文件。驳回的话我只写修改建议，不动代码。',
+   opts:[{label:'批准',then:'开始改，改完跑测试。'},{label:'驳回',then:'明白，不动代码，修改建议写进报告。'}]},
+  {k:'tool',t:'运行测试：18/18 通过',tok:1500},
+  {k:'say',t:'弱网下复现了 20 次，都没再白屏。',tok:700}],
+ meet:[
+  {k:'A',t:'日志显示是超时后返回了空对象。',tok:1200},
+  {k:'B',t:'我复现了一下，弱网下 100% 出现。',tok:1400},
+  {k:'A',t:'两种修法：前端加判断，或者后端超时也返回统一错误码。',tok:900},
+  {k:'B',t:'我倾向改后端，能根治。',tok:500},
+  {k:'ask',risk:'high',title:'分歧：怎么修？',detail:'一个快，一个彻底。',
+   opts:[{by:'A',label:'前端加判断，今天就能上线'},{by:'B',label:'后端统一错误码，要改两个服务'}]},
+  {k:'A',t:'收到，开始改。',tok:2000},
+  {k:'B',t:'测试 18/18 通过。',tok:1200}],
+ team:[
+  {k:'A',kind:'tool',t:"读取报错日志：TypeError: cannot read 'token' of undefined",tok:1800},
+  {k:'B',kind:'tool',t:'在弱网环境下复现：20 次里 20 次白屏',tok:1500},
+  {k:'pass',from:'B',to:'A',t:'复现步骤和抓包记录',tok:200},
+  {k:'A',kind:'think',t:'超时后返回了空对象，前端没做判断。',tok:900},
+  {k:'ask',risk:'high',title:'要修改 src/auth/login.ts 第 42 行',detail:'会直接改动文件。驳回的话只写修改建议。',
+   opts:[{label:'批准',then:'开始改。'},{label:'驳回',then:'明白，只写修改建议。'}]},
+  {k:'A',kind:'tool',t:'修改代码，生成补丁',tok:1600},
+  {k:'pass',from:'A',to:'B',t:'补丁，请你 review',tok:200},
+  {k:'B',kind:'tool',t:'代码审查 + 运行测试：18/18 通过',tok:1700},
+  {k:'B',kind:'say',t:'补丁没问题，我顺手加了一条回归测试。',tok:600}],
+ out:{title:'《登录报错修复说明》',body:'原因：接口超时返回空对象。修复方式、测试结果、以后怎么避免同类问题。'}},
+];
+function customTask(title,brief){
+  return {id:'o'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),title,brief:brief||'你写的新话题，员工会按通用流程处理。',est:'约 ¥1.0',custom:true,
+   solo:[
+    {k:'think',t:`先拆解「${title}」：目标是什么，给谁看，做到什么程度算完成。`,tok:900},
+    {k:'tool',t:'搜索并整理相关资料，留下 8 条有用的',tok:2200},
+    {k:'help',t:`「${title}」这个方向，你有什么建议？`,reply:'先想清楚给谁看，再决定写多细。',tok:700},
+    {k:'ask',risk:'low',title:'按「背景 → 方案 → 风险」的结构写，可以吗？',detail:'不同意的话我改成先给行动清单。',
+     opts:[{label:'批准',then:'好，按这个结构写。'},{label:'驳回',then:'明白，改成先给行动清单。'}]},
+    {k:'say',t:'草稿写完了，标出了 3 处我不确定的地方。',tok:1600}],
+   meet:[
+    {k:'A',t:`先对齐一下「${title}」的目标。`,tok:600},
+    {k:'B',t:'我觉得重点是给出能马上执行的下一步。',tok:700},
+    {k:'A',t:'我更想先把背景和约束讲清楚。',tok:700},
+    {k:'ask',risk:'high',title:'分歧：先讲背景，还是先给行动清单？',detail:'两人对结构有不同看法。',
+     opts:[{by:'A',label:'先讲背景和约束'},{by:'B',label:'先给行动清单'}]},
+    {k:'B',t:'好，按这个结构写。',tok:1500},
+    {k:'A',t:'合并完成，我又通读了一遍。',tok:900}],
+   team:[
+    {k:'A',kind:'think',t:`我来拆解「${title}」，你去找资料？`,tok:700},
+    {k:'B',kind:'tool',t:'搜索并整理资料，留下 8 条',tok:2000},
+    {k:'pass',from:'B',to:'A',t:'8 条资料摘要',tok:200},
+    {k:'A',kind:'tool',t:'写初稿',tok:2200},
+    {k:'pass',from:'A',to:'B',t:'初稿，请你审',tok:200},
+    {k:'B',kind:'say',t:'结构清楚，第二部分缺数据支撑。',tok:800},
+    {k:'pass',from:'B',to:'A',t:'1 条修改意见',tok:150,fix:true},
+    {k:'A',kind:'tool',t:'补充数据，定稿',tok:1400}],
+   out:{title:`《${title}》`,body:'初稿一份，标出了需要你补充信息的地方。'}};
+}
+// orders that arrive during the day
+const POOL=['给官网首页写三版文案','整理上个月的用户反馈','季度复盘的大纲','调研三款项目管理工具','给新同事写上手指南','下周团建去哪','写一份产品发布公告','对比三家云服务的价格'];
+// reasons you can give when sending work back; each one becomes a lasting preference
+const REASONS={
+  long:{label:'太长了',plan:'砍掉重复的部分，只留结论和依据。',fix:'压缩到原来一半篇幅，结论放到最前面',pref:'先给结论，写短一点'},
+  data:{label:'缺数据支撑',plan:'每个结论都补上数据或出处。',fix:'补充 6 处数据和来源',pref:'结论要有数据或出处'},
+  dir:{label:'方向不对',plan:'重新对齐目标，再改结构。',fix:'按新方向重写第二、三部分',pref:'动手前先和老板对齐方向'},
+};
+function revision(mode,r){
+  if(mode==='team') return [
+    {k:'A',kind:'think',t:`老板的意见：${r.label}。${r.plan}`,tok:600},
+    {k:'A',kind:'tool',t:r.fix,tok:1800},
+    {k:'pass',from:'A',to:'B',t:'修改稿，再审一遍',tok:150},
+    {k:'B',kind:'say',t:'这版可以了。',tok:400}];
+  if(mode==='meet') return [
+    {k:'A',t:`老板打回了：${r.label}。`,tok:300},
+    {k:'B',t:r.plan,tok:600},
+    {k:'A',t:r.fix,tok:1800},
+    {k:'B',t:'这版可以了。',tok:300}];
+  return [
+    {k:'think',t:`老板的意见：${r.label}。${r.plan}`,tok:600},
+    {k:'tool',t:r.fix,tok:1800},
+    {k:'say',t:'改好了，再请老板看看。',tok:300}];
+}
+const MODE_LABEL={solo:'单人',team:'分工协作',meet:'会议',project:'多人项目'};
+const LEVELS=[0,3,7,12,18];
+const levelOf=xp=>LEVELS.filter(v=>xp>=v).length;
+
+/* ---------- state ---------- */
+const state={speed:1,minutes:9*60,day:1,funds:20,budget:20,emps:[],orders:[],jobs:[],queue:[],wall:[],completed:0,
+  unlocked:{server:false,archive:false},selected:null,tab:'staff',focus:false,dropHover:null,ended:false,stats:null,dirty:true,packets:[],goals:{},arrivals:[],poolI:0,ring:0,projects:[]};
+const newStats=()=>({done:0,spent:0,asks:0,auto:0,collab:0,stars:0,reviews:0,reworks:0,decisions:[]});
+const planArrivals=()=>{state.arrivals=[10*60+40,12*60+50,14*60+50,16*60+30];};
+state.stats=newStats();
+const clock=()=>{const m=Math.floor(state.minutes);return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')};
+const dirty=()=>{state.dirty=true};
+
+// opts: id / name / look when restoring someone who already works here
+function hire(type,walkIn=true,opts={}){
+  const def=TYPES[type];
+  if(!def) return null;
+  const desk=def.needs==='server'?(SERVER_DESK.owner?null:SERVER_DESK):DESKS.find(d=>!d.owner);
+  if(!desk) return null;
+  const n=state.emps.filter(e=>e.type===type).length;
+  const [shirt,hair,skin]=opts.look||def.looks[n%def.looks.length];
+  const e={id:opts.id||`${type}-${Date.now().toString(36)}${Math.random().toString(36).slice(2,5)}`,type,name:opts.name||nextName(type),
+    model:def.model,traits:def.traits,speed:def.speed,memory:def.memory,price:def.price,needs:def.needs,pitch:def.pitch,shirt,hair,skin,desk,x:0,y:0,spot:null,path:[],job:null,log:[],spent:0,stamina:100,bubble:null,bubbleKind:'say',bubbleT:0,
+    wanderT:3+Math.random()*6,anim:Math.random()*5,waiting:false,tiredWarned:false,helping:false,bond:{},xp:0,level:1,prefs:[],carry:false};
+  desk.owner=e;
+  state.emps.push(e);API.empDirty=true;
+  if(walkIn){
+    const door={x:2,y:CY,exit:[],cx:2};
+    e.x=2;e.y=CY;e.spot=door;
+    goTo(e,freeLounge()||LOUNGE[0]);
+    addLog(e,{kind:'sys',text:'入职，第一天上班'});
+    say(e,`我是${e.name}。${def.pitch}`);
+    goal('hire');
+  }
+  buildTags();dirty();
+  return e;
+}
+function freeLounge(){
+  const free=LOUNGE.filter(sp=>!state.emps.some(o=>o.spot===sp));
+  return free[Math.floor(Math.random()*free.length)];
+}
+function goTo(e,spot){
+  if(e.spot===spot) return;
+  e.path=route(e.spot,spot);
+  e.spot=spot;
+}
+function addLog(e,entry){
+  const rec={t:clock(),...entry};
+  e.log.push(rec);API.activity(e,rec);
+  if(e.log.length>80) e.log.shift();
+  dirty();
+}
+function say(e,text,kind='say'){
+  e.bubble=text.length>34?text.slice(0,33)+'…':text;e.bubbleKind=kind;e.bubbleT=3.4;
+}
+function spend(e,tok){
+  const cost=tok/1000*e.price*1.5;
+  state.funds-=cost;e.spent+=cost;state.stats.spent+=cost;
+  API.ledger(e,tok,cost);API.empDirty=true;
+  e.stamina=Math.max(0,e.stamina-tok/(e.memory*75));
+  if(e.stamina<25&&!e.tiredWarned){
+    e.tiredWarned=true;
+    addLog(e,{kind:'sys',text:'精力不足：上下文快满了，前面的内容开始记不清。可以让 TA 下班休息（压缩记忆）。'});
+  }
+  if(state.funds<=0){state.funds=0;setSpeed(0);toast('资金用完了，所有员工停工。','warn');}
+  return cost;
+}
+
+/* ---------- jobs ---------- */
+function startJob(task,mode,members){
+  if(!task.project) API.post('/api/orders/'+encodeURIComponent(task.id),{status:'assigned',assignee:members.map(m=>m.name).join('、'),mode});
+  const j={id:uid(),task,mode,origMode:mode,members,steps:task[mode],i:0,t:0,phase:'gather',decisions:[],transcript:[],wait:false,h:null,cost:0,reworks:0,
+    dur:mode==='solo'?2.8*3/members[0].speed:mode==='team'?2.3:2.6};
+  state.jobs.push(j);
+  const [A,B]=members;
+  members.forEach((m,idx)=>{
+    m.job=j;m.tiredWarned=m.stamina<25;
+    const text=mode==='meet'?`进会议室和 ${members[1-idx].name} 讨论：`
+      :mode==='team'?(idx===0?`主写，搭档 ${B.name} 负责审查：`:`负责审查，搭档 ${A.name} 主写：`):'接到订单：';
+    addLog(m,{kind:'sys',text:text+task.title});
+    if(m.prefs.length) addLog(m,{kind:'think',text:'按老板之前的意见来：'+m.prefs.join('；')});
+    goTo(m,mode==='meet'?MEET[idx]:m.desk.seat);
+  });
+  if(B){bond(A,B);state.stats.collab++;}
+  say(A,mode==='meet'?'走，去会议室':mode==='team'?`${B.name}，这单我们分一下工`:'收到！');
+  if(B) say(B,mode==='team'?'好，我负责审':'来了');
+  state.orders=state.orders.filter(o=>o!==task);
+  renderOrders();dirty();
+  return j;
+}
+function execStep(j,st){
+  const who=j.mode==='solo'?j.members[0]:mem(j,st.k);
+  const kind=j.mode==='solo'?st.k:(st.kind||'say');
+  const cost=spend(who,st.tok);j.cost+=cost;
+  j.transcript.push(`${who.name}：${st.t}`);
+  j.members.forEach(m=>addLog(m,{who:j.mode==='solo'?'':who.name,kind,text:st.t,cost}));
+  say(who,st.t,kind);
+}
+const mem=(j,k)=>k==='B'?j.members[1]:j.members[0];
+function bond(a,b,n=1){a.bond[b.id]=(a.bond[b.id]||0)+n;b.bond[a.id]=(b.bond[a.id]||0)+n;API.empDirty=true;}
+function sendPacket(from,to,done,fix,job){state.packets.push({from,to,t:0,dur:1.3,fix:!!fix,done,job});}
+// team handoff: a document flies from one desk to the other; the job waits until it lands
+function passStep(j,st){
+  const a=mem(j,st.from),b=mem(j,st.to);
+  j.cost+=spend(a,st.tok);
+  j.transcript.push(`${a.name} 交给 ${b.name}：${st.t}`);
+  j.members.forEach(m=>addLog(m,{who:a.name,kind:'pass',text:`交给 ${b.name}：${st.t}`}));
+  say(a,`${st.t} → ${b.name}`);
+  j.wait=true;
+  sendPacket(a,b,()=>{
+    j.wait=false;j.t=0;
+    say(b,st.fix?'收到意见，马上改':'收到，我看看');
+    bond(a,b);state.stats.collab++;dirty();
+  },st.fix,j);
+}
+function visitSpot(c){
+  if(c.path.length) return null;
+  if(c.spot===c.desk.seat){const d=c.desk;return {x:d.x+33,y:d.seat.y,exit:[{x:d.x+38,y:d.seat.y}],cx:d.x+38};}
+  if(LOUNGE.includes(c.spot)){const sp=c.spot;return {x:sp.x+(sp.x>230?-16:16),y:sp.y,exit:sp.exit,cx:sp.cx};}
+  return null;
+}
+// solo worker asks a colleague: walks over if TA is at a desk or in the lounge, otherwise sends a message
+function openHelp(j,st){
+  const w=j.members[0];
+  const others=state.emps.filter(o=>o!==w);
+  const c=(st.to&&others.find(o=>o.id===st.to))||others.find(o=>!o.job&&!o.path.length)||others.find(o=>!o.path.length&&(!o.job||o.job.mode!=='meet'))||others[0];
+  if(!c){execStep(j,{k:'think',t:'没有同事可以问，自己再想想。',tok:st.tok});j.i++;return;}
+  const vs=visitSpot(c);
+  j.phase='help';j.h={c,st,visit:!!vs,stage:vs?'go':'pkt',t:0};c.helping=true;
+  addLog(w,{kind:'pass',text:vs?`去找 ${c.name} 帮忙`:`给 ${c.name} 发消息求助`});
+  if(vs){goTo(w,vs);say(w,`找${c.name}问问`,'think');}
+  else{
+    say(w,st.t);addLog(w,{kind:'say',text:`问 ${c.name}：${st.t}`});
+    sendPacket(w,c,()=>{j.h.stage='talk';j.h.t=0;addLog(c,{who:w.name,kind:'say',text:st.t});},false,j);
+  }
+  dirty();
+}
+function updateHelp(j,s){
+  const h=j.h,w=j.members[0],c=h.c;h.t+=s;
+  if(h.stage==='go'){
+    if(!w.path.length){h.stage='talk';h.t=0;say(w,h.st.t);addLog(w,{kind:'say',text:`问 ${c.name}：${h.st.t}`});addLog(c,{who:w.name,kind:'say',text:h.st.t});}
+    return;
+  }
+  if(h.stage==='pkt') return;
+  if(h.stage==='talk'&&h.t>=2){
+    const cost=spend(c,h.st.tok);j.cost+=cost;
+    j.transcript.push(`${w.name} 问 ${c.name}：${h.st.t}`,`${c.name}：${h.st.reply}`);
+    say(c,h.st.reply);
+    addLog(c,{kind:'say',text:`帮 ${w.name}：${h.st.reply}`,cost});
+    addLog(w,{who:c.name,kind:'say',text:h.st.reply});
+    if(!h.visit) sendPacket(c,w,null,false,j);
+    bond(w,c);state.stats.collab++;
+    h.stage='end';h.t=0;return;
+  }
+  if(h.stage==='end'&&h.t>=1.6){
+    c.helping=false;j.h=null;j.i++;
+    if(h.visit){say(w,'谢了！');goTo(w,w.desk.seat);j.phase='gather';}
+    else{j.phase='run';j.t=0;}
+    dirty();
+  }
+}
+function openAsk(j,st){
+  const item={id:uid(),type:'ask',job:j,step:st,risk:st.risk,age:0};
+  state.queue.push(item);state.stats.asks++;
+  j.phase='ask';
+  j.members.forEach(m=>{m.waiting=true;addLog(m,{kind:'ask',text:'请你确认：'+st.title});});
+  say(j.members[0],st.opts[0].by?'我们意见不一样，请老板定':'老板，有件事要你定一下');
+  placeQueue();renderQueue();
+}
+function placeQueue(){
+  let k=0;
+  for(const q of state.queue){
+    // whoever needs you walks to your door; meetings stay in the meeting room unless they bring work to review
+    const who=q.type==='gate'?q.e:q.type!=='review'&&q.job.mode==='meet'?null:q.job.members[0];
+    if(!who) continue;
+    goTo(who,QUEUE[Math.min(k,QUEUE.length-1)]);k++;
+  }
+}
+const nameOf=(j,by)=>by==='A'?j.members[0].name:j.members[1].name;
+function resolve(item,i,auto){
+  if(!state.queue.includes(item)) return;
+  const j=item.job,st=item.step,opt=st.opts[i];
+  state.queue=state.queue.filter(q=>q!==item);
+  const label=opt.by?`${nameOf(j,opt.by)}的方案：${opt.label}`:opt.label;
+  j.members.forEach(m=>{m.waiting=false;addLog(m,{kind:'boss',text:(auto?'快进模式自动批准（低风险）：':'')+label});});
+  if(opt.then){const sp=j.members[0];j.members.forEach(m=>addLog(m,{who:j.mode==='solo'?'':sp.name,kind:'say',text:opt.then}));say(sp,opt.then);}
+  else if(opt.by){say(opt.by==='A'?j.members[1]:j.members[0],'好，听老板的。');}
+  const short=st.title.replace(/^分歧：/,'');
+  j.decisions.push(`${short} → ${opt.label}`);
+  j.transcript.push(`老板：${label}`);
+  API.post('/api/approvals',{kind:opt.by?'choice':'approve',task:j.task.title,project_id:j.task.project?.sid||null,title:st.title,detail:st.detail,risk:st.risk,
+    decision:label,proposed_by:opt.by?nameOf(j,opt.by):null,auto,people:j.members.map(m=>m.name),day:state.day,time:clock()});
+  state.stats.decisions.push({task:j.task.title,q:short,a:opt.label,auto,split:!!opt.by});
+  if(auto){state.stats.auto++;toast(`快进：已自动批准「${short}」`,'ok');}else goal('approve');
+  if(opt.rework) j.steps=[...j.steps.slice(0,j.i+1),{k:'tool',t:'按老板的意见修改',tok:1500},...j.steps.slice(j.i+1)];
+  j.i++;j.phase='gather';j.t=0;
+  if(j.mode!=='meet') goTo(j.members[0],j.members[0].desk.seat);
+  placeQueue();renderQueue();dirty();
+}
+// finished work goes to your door for review; the lead carries it, partners go back to the lounge
+function finishJob(j){
+  if(j.task.project){roleDone(j);return;}
+  if(j.mode==='meet') API.post('/api/meetings',{topic:j.task.title,attendees:j.members.map(m=>m.id),transcript:j.transcript,decisions:j.decisions})
+    .then(r=>{if(r) addLog(j.members[0],{kind:'tool',text:`会议纪要存入文档库：${r.doc}`});});
+  j.phase='review';
+  const lead=j.members[0];
+  j.members.forEach((m,idx)=>{
+    if(idx===0){addLog(m,{kind:'sys',text:'做完了，拿去给老板验收'});return;}
+    m.job=null;addLog(m,{kind:'sys',text:`做完了，${lead.name} 拿去给老板验收`});
+    goTo(m,freeLounge()||LOUNGE[idx]);m.wanderT=6+Math.random()*6;
+  });
+  lead.carry=true;lead.waiting=true;say(lead,'老板，做好了，请验收');
+  state.queue.push({id:uid(),type:'review',job:j,risk:'high',age:0});
+  placeQueue();renderQueue();dirty();
+}
+function acceptReview(item,stars){
+  if(!state.queue.includes(item)) return;
+  state.queue=state.queue.filter(q=>q!==item);
+  const j=item.job,lead=j.members[0];
+  state.jobs=state.jobs.filter(x=>x!==j);
+  if(lead.job===j) lead.job=null;
+  lead.waiting=false;lead.carry=false;
+  if(j.project) j.project.done=true;
+  const people=j.project?projectPeople(j.project):j.members;
+  const d={id:uid(),title:j.task.out.title,body:j.task.out.body,by:people.map(m=>m.name).join(' + '),mode:j.origMode,
+    decisions:j.decisions,time:clock(),day:state.day,stars,reworks:j.reworks,cost:j.cost};
+  state.wall.unshift(d);state.completed++;
+  const s=state.stats;s.done++;s.stars+=stars;s.reviews++;
+  if(j.origMode==='meet'&&j.members[1]) bond(j.members[0],j.members[1],2);
+  say(lead,stars===3?'太好了！':stars===2?'收到，下次争取三星':'明白，我再琢磨琢磨');
+  people.forEach(m=>{addLog(m,{kind:'boss',text:`验收通过 ${'★'.repeat(stars)}：${d.title}`});gainXp(m,stars);});
+  if(j.project){
+    if(j.project.sid) API.post(`/api/projects/${j.project.sid}/review`,{stars,decisions:j.decisions}).then(r=>{if(r){logArtifacts(lead,r.artifacts);toast('项目已合并发布，总结存入文档库','ok');}});
+  }else{
+    API.post('/api/deliverables',{title:d.title,body:d.body,people:j.members.map(m=>m.id),mode:j.origMode,mode_label:MODE_LABEL[j.origMode],stars,
+      reworks:j.reworks,cost:j.cost,decisions:j.decisions,transcript:j.transcript,order_id:j.task.id}).then(r=>{if(r) addLog(lead,{kind:'tool',text:`交付物存入文档库：${r.doc}`});});
+  }
+  if(!lead.job){goTo(lead,freeLounge()||LOUNGE[0]);lead.wanderT=6+Math.random()*6;}
+  toast(`${d.title} 验收 ${'★'.repeat(stars)}，挂上作品墙`,'ok');
+  goal('review');renderWall();checkUnlocks();placeQueue();renderQueue();dirty();
+}
+function rejectReview(item,key){
+  if(!state.queue.includes(item)) return;
+  state.queue=state.queue.filter(q=>q!==item);
+  if(item.job.project){reworkProject(item.job,key);return;}
+  const r=REASONS[key],j=item.job,lead=j.members[0],partner=j.members[1];
+  lead.waiting=false;lead.carry=false;
+  j.reworks++;state.stats.reworks++;
+  j.transcript.push(`老板打回：${r.label}`);
+  API.post('/api/reviews',{subject:j.task.out.title,reason:r.label,people:j.members.map(m=>m.name)});
+  // the partner rejoins if free; otherwise the lead fixes it alone
+  let mode=j.mode;
+  if(mode!=='solo'&&(!partner||partner.job)) mode='solo';
+  j.mode=mode;j.members=mode==='solo'?[lead]:[lead,partner];
+  j.steps=revision(mode,r);j.i=0;j.t=0;j.phase='gather';j.dur=mode==='solo'?2.8*3/lead.speed:2.4;
+  j.members.forEach((m,idx)=>{
+    m.job=j;addLog(m,{kind:'boss',text:`打回重做：${r.label}`});learn(m,r);
+    goTo(m,mode==='meet'?MEET[idx]:m.desk.seat);
+  });
+  say(lead,'明白，马上改');
+  toast(`已打回：${r.label}。${j.members.map(m=>m.name).join('和')}会记住这个偏好。`);
+  placeQueue();renderQueue();dirty();
+}
+function learn(m,r){if(!m.prefs.includes(r.pref)){m.prefs.push(r.pref);API.empDirty=true;addLog(m,{kind:'sys',text:'记住了你的偏好：'+r.pref});}}
+function gainXp(m,n){
+  m.xp+=n;API.empDirty=true;const lv=levelOf(m.xp);
+  if(lv<=m.level) return;
+  m.level=lv;
+  const stat=(lv%2===0&&m.speed<5)||m.memory>=5?'speed':'memory';
+  if(m[stat]<5) m[stat]++;
+  const name=stat==='speed'?'速度':'记忆力';
+  addLog(m,{kind:'sys',text:`升到 Lv.${lv}，${name} +1`});
+  say(m,`升级！Lv.${lv}`,'lv');
+  toast(`${m.name} 升到 Lv.${lv}：${name} +1`,'ok');
+}
+function cancelJob(j){
+  if(!j||j.phase==='review') return;
+  state.jobs=state.jobs.filter(x=>x!==j);
+  state.queue=state.queue.filter(q=>q.job!==j);
+  state.packets=state.packets.filter(p=>p.job!==j);
+  if(j.h) j.h.c.helping=false;
+  j.members.forEach((m,idx)=>{
+    if(m.job===j) m.job=null;
+    m.waiting=false;m.carry=false;
+    addLog(m,{kind:'boss',text:'叫停：'+j.task.title});
+    goTo(m,freeLounge()||LOUNGE[idx]);m.wanderT=6+Math.random()*6;
+  });
+  say(j.members[0],'好，先放下');
+  state.orders.unshift(j.task);renderOrders();
+  API.post('/api/orders/'+encodeURIComponent(j.task.id),{status:'open'});
+  toast(`已叫停「${j.task.title}」，订单放回任务板`);
+  placeQueue();renderQueue();dirty();
+}
+function interject(e,text){
+  const j=e.job;if(!j) return;
+  j.members.forEach(m=>addLog(m,{kind:'boss',text:`你对 ${e.name} 说：${text}`}));
+  j.transcript.push(`老板对 ${e.name} 说：${text}`);
+  const cost=spend(e,300);j.cost+=cost;
+  const reply=`收到，接下来按「${text}」调整。`;
+  addLog(e,{kind:'say',text:reply,cost});
+  j.members.filter(m=>m!==e).forEach(m=>addLog(m,{who:e.name,kind:'say',text:reply}));
+  say(e,'收到，按你说的调整');
+}
+function newOrderArrives(){
+  state.arrivals.shift();
+  const t=customTask(POOL[state.poolI++%POOL.length],'刚收到的新需求，按通用流程处理。');t.fresh=true;
+  state.orders.push(t);renderOrders();state.ring=4;
+  API.post('/api/orders',orderRecord(t,'incoming'));
+  toast(`新订单：${t.title}`,'warn');
+}
+function checkUnlocks(){
+  for(const k of ['server','archive']){
+    const r=ROOMS[k];
+    if(!state.unlocked[k]&&state.completed>=r.lock){
+      state.unlocked[k]=true;drawBG();buildRoomLabels();
+      toast(`解锁：${r.label}。${r.unlockText}`,'warn');
+    }
+  }
+}
+function assign(task,target,anchor){
+  closeMenu();
+  if(target==='meeting'||target==='work'){
+    const idle=state.emps.filter(e=>!busy(e));
+    const mode=target==='meeting'?'meet':'team';
+    if(idle.length<2){toast(mode==='meet'?'开会需要 2 名空闲员工，现在不够。':'分工协作需要 2 名空闲员工，现在不够。','warn');return;}
+    if(idle.length>2&&anchor){openPicker(task,mode,idle,anchor);return;}
+    startPair(task,mode,idle.slice(0,2));
+    return;
+  }
+  const e=state.emps.find(x=>x.id===target);
+  if(!e) return;
+  if(busy(e)){toast(`${e.name} 正在忙${e.job?`「${e.job.task.title}」`:''}`,'warn');return;}
+  startJob(task,'solo',[e]);select(e);goal('solo');
+}
+function startPair(task,mode,[a,b]){
+  startJob(task,mode,[a,b]);goal('pair');
+  toast(mode==='meet'?`${a.name} 和 ${b.name} 去会议室讨论「${task.title}」`:`${a.name} 主写、${b.name} 审查，分工做「${task.title}」`);
+}
+// more than two people free: let the boss pick the pair, preselecting the two who work together best
+function openPicker(task,mode,idle,anchor){
+  let pick=[idle[0],idle[1]],best=-1;
+  for(let i=0;i<idle.length;i++) for(let k=i+1;k<idle.length;k++){const v=idle[i].bond[idle[k].id]||0;if(v>best){best=v;pick=[idle[i],idle[k]];}}
+  const roles=mode==='team'?['主写','审查']:['发起','参会'];
+  const render=()=>{
+    menu.innerHTML=`<span class="lbl">${mode==='team'?'选两个人分工':'选两个人开会'}：${esc(task.title)}</span>`;
+    for(const e of idle){
+      const b=document.createElement('button'),idx=pick.indexOf(e);
+      b.setAttribute('aria-pressed',idx>=0);
+      b.innerHTML=`<span class="sw" style="background:${e.shirt}"></span>${esc(e.name)}<small>${idx>=0?roles[idx]:'点选加入'}</small>`;
+      b.onclick=()=>{if(idx>=0) pick.splice(idx,1);else{if(pick.length>=2) pick.pop();pick.push(e);}render();};
+      menu.appendChild(b);
+    }
+    const go=document.createElement('button');go.className='btn primary';go.textContent='开始';go.disabled=pick.length!==2;
+    go.onclick=()=>{closeMenu();startPair(task,mode,pick);};
+    menu.appendChild(go);
+  };
+  render();menu.hidden=false;placeMenu(anchor);
+  menu.querySelector('.btn.primary').focus();
+}
+
+/* ---------- simulation ---------- */
+function update(dt){
+  const s=dt*state.speed;
+  if(s>0){
+    state.minutes+=s*3;
+    state.ring=Math.max(0,state.ring-s);
+    if(state.arrivals.length&&state.minutes>=state.arrivals[0]) newOrderArrives();
+    for(const p of state.projects) if(p.roles.some(r=>r.status==='wait')) tickProject(p);
+    if(state.minutes>=18*60&&!state.ended){state.ended=true;openReport(true);}
+  }
+  for(const e of state.emps) updateEmp(e,s);
+  for(const p of [...state.packets]){p.t+=s;if(p.t>=p.dur){state.packets=state.packets.filter(x=>x!==p);if(p.done) p.done();}}
+  for(const j of [...state.jobs]) updateJob(j,s);
+  for(const q of [...state.queue]){q.age+=s;if(state.speed===3&&q.risk==='low'&&q.age>1.2) resolve(q,0,true);}
+}
+function updateEmp(e,s){
+  if(s<=0) return;
+  e.anim+=s;
+  if(e.bubble){e.bubbleT-=s;if(e.bubbleT<=0) e.bubble=null;}
+  if(e.path.length){
+    const p=e.path[0],dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy),step=38*s;
+    if(d<=step){e.x=p.x;e.y=p.y;e.path.shift();}
+    else{e.x+=dx/d*step;e.y+=dy/d*step;}
+  }else if(!busy(e)&&!e.helping){
+    e.wanderT-=s;
+    if(e.wanderT<=0){e.wanderT=8+Math.random()*9;const sp=freeLounge();if(sp) goTo(e,sp);}
+  }
+}
+function updateJob(j,s){
+  if(j.phase==='gather'){
+    if(j.members.every(m=>!m.path.length)){j.phase='run';j.t=0;dirty();}
+    return;
+  }
+  if(j.phase==='help'){if(s>0) updateHelp(j,s);return;}
+  if(j.phase!=='run'||s<=0||j.wait) return;
+  j.t+=s;
+  if(j.t<j.dur) return;
+  j.t=0;
+  if(j.i>=j.steps.length){finishJob(j);return;}
+  const st=j.steps[j.i];
+  if(st.k==='ask'){openAsk(j,st);return;}
+  if(st.k==='pass'){passStep(j,st);j.i++;return;}
+  if(st.k==='help'){openHelp(j,st);return;}
+  execStep(j,st);j.i++;
+}
+
+/* ---------- drawing ---------- */
+const cv=$('#cv'),ctx=cv.getContext('2d');
+const bg=document.createElement('canvas');bg.width=W;bg.height=H;
+let T=0;
+function R(c,col,x,y,w,h){c.fillStyle=col;c.fillRect(x,y,w,h)}
+function drawBG(){
+  const b=bg.getContext('2d');
+  R(b,'#57506a',0,0,W,H);
+  for(let x=0;x<W;x+=16) R(b,(x/16)%2?'#5a536d':'#534c65',x,104,16,36);
+  // work floor
+  R(b,'#8a6a4d',116,16,164,88);
+  for(let y=16,r=0;y<104;y+=6,r++){R(b,'#7b5d42',116,y+5,164,1);for(let x=116+(r%2)*14;x<280;x+=28) R(b,'#7b5d42',x,y,1,5);}
+  // meeting carpet
+  R(b,'#4c5d86',0,16,112,88);
+  for(let y=20;y<104;y+=8) for(let x=4+((y/8)%2)*4;x<112;x+=8) R(b,'#55689a',x,y,1,1);
+  // boss carpet
+  R(b,'#6f4455',284,16,100,88);R(b,'#83546a',292,30,84,64);R(b,'#6f4455',294,32,80,60);
+  // lounge tiles
+  for(let y=140;y<H;y+=8) for(let x=124;x<260;x+=8) R(b,((x+y)/8)%2?'#4a7673':'#436d6a',x,y,8,8);
+  // server floor
+  R(b,'#2b2f3d',0,142,120,82);for(let x=0;x<120;x+=12) R(b,'#333849',x,142,1,82);for(let y=142;y<H;y+=12) R(b,'#333849',0,y,120,1);
+  // archive floor
+  R(b,'#6a5140',264,142,120,82);for(let y=146;y<H;y+=6) R(b,'#5f4838',264,y,120,1);
+  // top wall + windows + whiteboard
+  R(b,'#3b3452',0,0,W,16);R(b,'#2d2741',0,0,W,3);R(b,'#231e33',0,15,W,1);
+  for(const [x0,x1] of [[136,160],[184,208],[232,256],[300,326],[346,372]]){
+    R(b,'#c9d6e8',x0,4,x1-x0,10);R(b,'#8ec5dc',x0+1,5,x1-x0-2,8);R(b,'#b5e0ef',x0+2,6,4,2);R(b,'#c9d6e8',x0+(x1-x0)/2,5,1,8);
+  }
+  R(b,'#9aa3b4',24,3,64,11);R(b,'#e3e8ef',25,4,62,9);
+  R(b,'#d06a6a',29,6,16,1);R(b,'#d06a6a',29,8,10,1);R(b,'#5f8fd0',50,6,22,1);R(b,'#5f8fd0',50,9,30,1);R(b,'#5aa37a',29,11,40,1);
+  // walls
+  const WALL='#3b3452',TOP='#4b4366';
+  const wall=(x,y,w,h)=>{R(b,WALL,x,y,w,h);R(b,TOP,x,y,w,1);};
+  wall(112,16,4,92);wall(280,16,4,92);
+  wall(0,104,44,4);wall(68,104,44,4);
+  wall(284,104,8,4);wall(314,104,70,4);
+  wall(0,136,50,6);wall(72,136,52,6);wall(120,142,4,82);
+  wall(260,136,52,6);wall(334,136,50,6);wall(260,142,4,82);
+  // meeting table
+  R(b,'#7e5d40',36,50,40,30);R(b,'#9b7451',36,48,40,30);R(b,'#ad8560',36,48,40,2);
+  R(b,'#efe9dc',42,54,8,6);R(b,'#efe9dc',60,64,9,6);R(b,'#3d4256',52,58,6,4);
+  // boss office
+  R(b,'#4a3027',318,52,50,4);R(b,'#5e3d31',318,38,50,14);R(b,'#734b3c',318,38,50,2);
+  R(b,'#9aa0ad',334,34,16,9);R(b,'#2d3346',335,35,14,6);R(b,'#c9ced8',332,43,20,2);
+  R(b,'#efe9dc',356,41,8,6);
+  R(b,'#2a2433',338,58,10,8);R(b,'#3a3346',338,58,10,2);
+  R(b,'#a3613f',370,30,8,7);R(b,'#5d9a5a',368,20,12,10);R(b,'#6fb06a',371,22,5,4);
+  R(b,'#c79a3a',296,22,10,7);R(b,'#e7c25a',297,23,8,5);
+  // lounge
+  R(b,'#5b3e2b',150,136,86,9);R(b,'#a8794d',152,137,82,7);
+  R(b,'#83495a',160,154,40,5);R(b,'#9a5a6b',160,158,40,10);R(b,'#83495a',158,156,3,12);R(b,'#83495a',199,156,3,12);
+  R(b,'#6a4c38',184,178,36,10);R(b,'#7a5a43',184,176,36,9);R(b,'#efe9dc',190,178,3,3);R(b,'#efe9dc',208,179,3,3);
+  R(b,'#a3613f',125,155,6,6);R(b,'#5d9a5a',124,146,8,10);
+  R(b,'#9fb8c8',250,146,8,13);R(b,'#7fb6e6',251,144,6,4);
+  // server room
+  for(const x of [8,26,78,96]){R(b,'#1d2230',x,146,14,24);R(b,'#2a3142',x,146,14,2);for(let y=150;y<168;y+=4) R(b,'#2f3648',x+2,y,10,2);}
+  // archive
+  for(let i=0;i<13;i++){R(b,'#4a3628',268+i*8,146,8,18);const cols=['#c46a5a','#5f8fd0','#d8b84e','#5aa37a','#b99ae0'];for(let k=0;k<3;k++) R(b,cols[(i+k)%5],269+i*8+k*2,148,2,14);}
+  R(b,'#7a5a43',300,182,44,12);R(b,'#8b6a51',300,182,44,2);R(b,'#efe9dc',310,185,10,6);
+  // locks
+  for(const k of ['server','archive']){
+    if(state.unlocked[k]) continue;
+    const r=ROOMS[k];
+    b.fillStyle='rgba(18,15,26,.72)';b.fillRect(r.x,r.y,r.w,r.h);
+    const cx=Math.round(r.x+r.w/2),cy=Math.round(r.y+r.h/2)-4;
+    R(b,'#8f8a99',cx-4,cy-7,8,2);R(b,'#8f8a99',cx-4,cy-7,2,7);R(b,'#8f8a99',cx+2,cy-7,2,7);
+    R(b,'#c9a24a',cx-6,cy-1,12,9);R(b,'#e2bf63',cx-6,cy-1,12,2);R(b,'#3b3452',cx-1,cy+2,2,4);
+  }
+}
+function allDesks(){return state.unlocked.server?[...DESKS,SERVER_DESK]:DESKS}
+function drawDesk(d){
+  const o=d.owner,on=o&&(o.writing||(o.job&&o.job.mode!=='meet'&&o.job.phase==='run'))&&!o.path.length&&o.spot===d.seat;
+  R(ctx,'#9a7452',d.x,d.y+10,28,4);R(ctx,'#c79f74',d.x,d.y,28,10);R(ctx,'#d8b389',d.x,d.y,28,1);
+  R(ctx,'#2a2d3b',d.x+1,d.y-5,8,7);
+  R(ctx,on?(Math.floor(T*3)%2?'#9be0ff':'#7fcdf0'):'#3d4256',d.x+2,d.y-4,6,5);
+  R(ctx,'#2a2d3b',d.x+4,d.y+2,2,2);
+  R(ctx,'#e6e1ea',d.x+11,d.y+3,8,2);
+  if(o) R(ctx,o.shirt,d.x+22,d.y+2,4,4);
+}
+function drawPerson(e){
+  const x=Math.round(e.x)-5,y=Math.round(e.y)-14;
+  const walking=e.path.length>0,f=walking?Math.floor(e.anim*7)%2:0;
+  if(state.selected===e){R(ctx,'#f2b544',x-1,y+14,12,2);}
+  ctx.fillStyle='rgba(0,0,0,.28)';ctx.fillRect(x+1,y+13,8,2);
+  R(ctx,'#2b2838',x+2,y+10,2,f?3:4);R(ctx,'#2b2838',x+6,y+10,2,f?4:3);
+  R(ctx,e.shirt,x+1,y+6,8,5);
+  const typing=(e.writing||(e.job&&e.job.phase==='run'))&&!walking;
+  const a=typing?Math.floor(e.anim*6)%2:0;
+  R(ctx,e.skin,x,y+7+(typing?a:0),1,3);R(ctx,e.skin,x+9,y+7+(typing?1-a:0),1,3);
+  if(e.carry){R(ctx,'#efe9dc',x+8,y+5,4,6);R(ctx,'#c3a6ea',x+8,y+5,4,1);}
+  R(ctx,e.skin,x+2,y+1,6,5);
+  R(ctx,e.hair,x+2,y,6,2);R(ctx,e.hair,x+1,y+1,1,3);R(ctx,e.hair,x+8,y+1,1,2);
+  R(ctx,'#2a1f1f',x+3,y+3,1,1);R(ctx,'#2a1f1f',x+6,y+3,1,1);
+  if(state.dropHover===e.id){ctx.strokeStyle='#f2b544';ctx.lineWidth=1;ctx.strokeRect(x-2.5,y-2.5,15,20);}
+}
+function draw(){
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(bg,0,0);
+  // work wall: one paper per delivery
+  for(let i=0;i<Math.min(state.wall.length,10);i++){R(ctx,'#efe9dc',154+i*8,138,6,5);R(ctx,['#ee7b86','#7fb6e6','#78cfa2'][i%3],156+i*8,138,2,1);}
+  // desk phone blinks when a new order comes in
+  R(ctx,'#2a2433',321,41,9,6);R(ctx,state.ring>0&&Math.floor(T*6)%2?'#ee7b86':'#4a4260',322,42,7,2);
+  if(state.unlocked.server){for(const x of [8,26,78,96]) for(let y=150;y<168;y+=4) R(ctx,(Math.floor(T*2+x+y)%3)?'#78cfa2':'#f2b544',x+10,y,1,1);}
+  if(state.dropHover==='meeting'||state.dropHover==='work'){
+    const r=ROOMS[state.dropHover];ctx.fillStyle='rgba(242,181,68,.18)';ctx.fillRect(r.x,r.y,r.w,r.h);
+    ctx.strokeStyle='#f2b544';ctx.lineWidth=2;ctx.strokeRect(r.x+1,r.y+1,r.w-2,r.h-2);
+  }
+  const items=[];
+  for(const d of allDesks()) items.push([d.y+14,()=>drawDesk(d)]);
+  for(const e of state.emps) items.push([e.y,()=>drawPerson(e)]);
+  items.sort((a,b)=>a[0]-b[0]).forEach(i=>i[1]());
+  // collaboration links: who is working with whom right now
+  for(const j of state.jobs){
+    if(j.phase==='review') continue;
+    if(j.mode==='solo'){if(j.h) link(j.members[0],j.h.c);continue;}
+    if(j.members.some(m=>m.path.length)) continue;
+    link(j.members[0],j.members[1]);
+  }
+  // documents in flight between colleagues
+  for(const p of state.packets){
+    const k=p.t/p.dur,x=p.from.x+(p.to.x-p.from.x)*k,y=p.from.y-10+(p.to.y-p.from.y)*k-Math.sin(Math.PI*k)*18;
+    const px=Math.round(x)-3,py=Math.round(y)-3;
+    R(ctx,'rgba(0,0,0,.3)',px+1,py+1,7,6);R(ctx,'#efe9dc',px,py,7,6);R(ctx,p.fix?'#ee7b86':'#c3a6ea',px,py,7,2);R(ctx,'#a69fb8',px+1,py+3,5,1);
+  }
+}
+function link(a,b){
+  ctx.save();ctx.setLineDash([2,3]);ctx.lineDashOffset=-T*12;ctx.strokeStyle='rgba(195,166,234,.75)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(Math.round(a.x)+.5,Math.round(a.y)-17.5);ctx.lineTo(Math.round(b.x)+.5,Math.round(b.y)-17.5);ctx.stroke();ctx.restore();
+}
+
+/* ---------- overlay ---------- */
+const overlay=$('#overlay');
+const pct=(v,t)=>(v/t*100)+'%';
+function buildRoomLabels(){
+  overlay.querySelectorAll('.room-label,.you').forEach(n=>n.remove());
+  for(const [k,r] of Object.entries(ROOMS)){
+    const el=document.createElement('span');
+    const locked=r.lock&&!state.unlocked[k];
+    el.className='room-label'+(locked?' locked':'');
+    el.textContent=locked?`${r.label} · 交付 ${r.lock} 单解锁`:r.label;
+    el.style.left=pct(r.lx,W);el.style.top=pct(r.ly,H);
+    overlay.appendChild(el);
+  }
+  const you=document.createElement('span');you.className='you';you.textContent='你的座位';
+  you.style.left=pct(343,W);you.style.top=pct(68,H);overlay.appendChild(you);
+}
+function buildTags(){
+  for(const e of state.emps){
+    if(e.tagEl) continue;
+    e.tagEl=document.createElement('div');e.tagEl.className='tag';
+    e.tagEl.innerHTML=`<span class="st"></span><span class="nm">${esc(e.name)}</span>`;
+    e.bubEl=document.createElement('div');e.bubEl.className='bubble';e.bubEl.hidden=true;
+    overlay.append(e.tagEl,e.bubEl);
+  }
+}
+function statusIcon(e){
+  if(e.waiting) return ['!','warn'];
+  if(e.writing) return ['写','work'];
+  if(e.job&&e.job.phase==='help') return ['问','meet'];
+  if(e.helping) return ['帮','meet'];
+  if(e.job&&e.job.phase==='run'&&!e.path.length) return e.job.mode==='meet'?['议','meet']:e.job.mode==='team'?['协','meet']:['…','work'];
+  if(e.stamina<25) return ['Zz','tired'];
+  return ['',''];
+}
+function syncOverlay(){
+  const placed=[];
+  for(const e of state.emps){
+    const t=e.tagEl,b=e.bubEl;
+    t.style.left=pct(e.x,W);t.style.top=pct(e.y-16,H);
+    t.classList.toggle('sel',state.selected===e);
+    const [ic,cls]=statusIcon(e),st=t.firstChild;
+    if(st.textContent!==ic){st.textContent=ic;st.className='st '+cls;}
+    if(e.bubble){
+      if(b.hidden) b.hidden=false;
+      if(b.dataset.txt!==e.bubble){b.dataset.txt=e.bubble;b.textContent=e.bubble;b.className='bubble '+e.bubbleKind;}
+      // stack bubbles of people standing close together instead of overlapping them
+      const bx=Math.min(Math.max(e.x,46),W-46);let by=e.y-25;
+      while(placed.some(p=>Math.abs(p.x-bx)<80&&Math.abs(p.y-by)<15)) by-=15;
+      placed.push({x:bx,y:by});
+      b.style.left=pct(bx,W);b.style.top=pct(by,H);
+    }else if(!b.hidden) b.hidden=true;
+  }
+}
+
+/* ---------- pointer on canvas ---------- */
+function toLocal(cx,cy){
+  const r=cv.getBoundingClientRect();
+  if(state.focus||cx<r.left||cx>r.right||cy<r.top||cy>r.bottom) return null;
+  return {x:(cx-r.left)/r.width*W,y:(cy-r.top)/r.height*H};
+}
+function empAt(p){
+  let hit=null;
+  for(const e of state.emps) if(Math.abs(p.x-e.x)<=8&&p.y>=e.y-18&&p.y<=e.y+3&&(!hit||e.y>hit.y)) hit=e;
+  return hit;
+}
+const inRoom=(p,r)=>p.x>=r.x&&p.x<r.x+r.w&&p.y>=r.y&&p.y<r.y+r.h;
+function hitTarget(cx,cy){
+  const p=toLocal(cx,cy);if(!p) return null;
+  const e=empAt(p);if(e) return e.id;
+  if(inRoom(p,ROOMS.meeting)) return 'meeting';
+  if(inRoom(p,ROOMS.work)) return 'work';
+  return null;
+}
+cv.addEventListener('pointermove',ev=>{const p=toLocal(ev.clientX,ev.clientY);cv.style.cursor=p&&empAt(p)?'pointer':'default';});
+cv.addEventListener('click',ev=>{
+  const p=toLocal(ev.clientX,ev.clientY);if(!p) return;
+  const e=empAt(p);
+  if(e){select(e);return;}
+  for(const k of ['server','archive']) if(inRoom(p,ROOMS[k])&&!state.unlocked[k]){toast(`${ROOMS[k].label}还没解锁：累计交付 ${ROOMS[k].lock} 个订单后开放。`);return;}
+  // the rooms are doors into the real company systems
+  if(API.on){
+    const go=[['server','#git'],['archive','#docs'],['boss','#records']].find(([k])=>inRoom(p,ROOMS[k]));
+    if(go){window.open('/company.html'+go[1],'_blank','noopener');return;}
+  }
+  if(inRoom(p,ROOMS.meeting)) toast('会议室：把订单拖到这里，两名空闲员工会一起讨论。');
+  else if(inRoom(p,ROOMS.work)) toast('工位区：把订单拖到空地上，两名空闲员工会分工协作、互相审查。');
+  else if(inRoom(p,ROOMS.boss)) toast('这是你的办公室。员工需要确认时会到门口排队。');
+});
+
+/* ---------- order drag ---------- */
+const ghost=$('#ghost');
+function bindDrag(card,task){
+  let sx=0,sy=0,dragging=false,pid=null;
+  card.addEventListener('pointerdown',ev=>{if(ev.button!==0) return;sx=ev.clientX;sy=ev.clientY;dragging=false;pid=ev.pointerId;card.setPointerCapture(pid);});
+  card.addEventListener('pointermove',ev=>{
+    if(pid!==ev.pointerId) return;
+    if(!dragging&&Math.hypot(ev.clientX-sx,ev.clientY-sy)>6){dragging=true;closeMenu();ghost.textContent=task.title;ghost.className='ghost';ghost.hidden=false;card.classList.add('dragging');}
+    if(dragging){
+      ghost.style.left=ev.clientX+'px';ghost.style.top=ev.clientY+'px';
+      const t=hitTarget(ev.clientX,ev.clientY);state.dropHover=t;
+      // the ghost says what will happen if you let go here
+      const [txt,cls]=intentOf(task,t);
+      if(ghost.textContent!==txt) ghost.textContent=txt;
+      ghost.className='ghost '+cls;
+    }
+  });
+  const end=ev=>{
+    if(pid!==ev.pointerId) return;pid=null;
+    card.classList.remove('dragging');ghost.hidden=true;
+    const t=ev.type==='pointerup'&&dragging?hitTarget(ev.clientX,ev.clientY):null;
+    state.dropHover=null;
+    if(ev.type!=='pointerup') return;
+    if(dragging){if(t) assign(task,t,{x:ev.clientX,y:ev.clientY});else toast(state.focus?'专注视图里请点订单来分配。':'拖到某个员工身上，或者拖进会议室。');}
+    else openMenu(task,card);
+  };
+  card.addEventListener('pointerup',end);card.addEventListener('pointercancel',end);
+  card.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();openMenu(task,card);}});
+}
+const menu=$('#menu');
+function statusText(e){
+  if(e.job){
+    if(e.job.phase==='review') return '等你验收';
+    if(e.job.phase==='ask') return '等你确认';
+    if(e.job.phase==='help') return '找同事帮忙';
+    if(e.job.phase==='gather') return e.job.mode==='meet'?'去会议室':'回工位';
+    return e.job.mode==='meet'?'开会中':e.job.mode==='team'?(e.job.wait?'交接中':'协作中'):'工作中';
+  }
+  if(e.writing) return `在写${e.writing.out||'交付物'}`;
+  if(e.waiting) return '等你确认';
+  if(e.helping) return '在帮同事';
+  return e.path.length?'走动':'空闲';
+}
+function openMenu(task,card){
+  const r=card.getBoundingClientRect();
+  const idle=state.emps.filter(e=>!busy(e)).length;
+  menu.innerHTML=`<span class="lbl">把「${esc(task.title)}」交给</span>`;
+  for(const e of state.emps){
+    const b=document.createElement('button');
+    b.innerHTML=`<span class="sw" style="background:${e.shirt}"></span>${esc(e.name)}<small>${statusText(e)}</small>`;
+    b.disabled=busy(e);b.onclick=()=>assign(task,e.id);menu.appendChild(b);
+  }
+  const at={x:r.left,y:r.bottom};
+  const m=document.createElement('button');
+  m.innerHTML=`会议室：两人先讨论<small>空闲 ${idle} 人</small>`;m.disabled=idle<2;m.onclick=()=>assign(task,'meeting',at);
+  const tm=document.createElement('button');
+  tm.innerHTML=`工位区：两人分工、互相审查<small>空闲 ${idle} 人</small>`;tm.disabled=idle<2;tm.onclick=()=>assign(task,'work',at);
+  const pl=document.createElement('button');
+  pl.innerHTML=`安排分工：拆给多人接力<small>打开分工窗口</small>`;pl.onclick=()=>{closeMenu();openPlanner({name:task.title,goal:task.brief,order:task});};
+  menu.append(m,tm,pl);
+  menu.hidden=false;placeMenu(at);
+  menu.querySelector('button:not(:disabled)')?.focus();
+}
+function placeMenu(a){
+  const w=menu.offsetWidth,h=menu.offsetHeight,vw=document.documentElement.clientWidth,vh=innerHeight;
+  const x=Math.max(8,Math.min(a.x,vw-w-8)),y=a.y+h+8>vh?Math.max(8,a.y-h-8):a.y+6;
+  menu.style.left=(x+scrollX)+'px';menu.style.top=(y+scrollY)+'px';
+}
+function intentOf(task,t){
+  if(!t) return [task.title,''];
+  if(t==='meeting'||t==='work'){
+    if(state.emps.filter(e=>!busy(e)).length<2) return ['空闲员工不够 2 人','bad'];
+    return [t==='meeting'?'放开：两人开会讨论':'放开：两人分工、互相审查','ok'];
+  }
+  const e=state.emps.find(x=>x.id===t);
+  return busy(e)?[`${e.name} 正在忙`,'bad']:[`放开：交给 ${e.name} 单独做`,'ok'];
+}
+function closeMenu(){menu.hidden=true}
+document.addEventListener('pointerdown',ev=>{if(!menu.hidden&&!menu.contains(ev.target)&&!ev.target.closest('.order')) closeMenu();});
+document.addEventListener('keydown',ev=>{if(ev.key==='Escape'){closeMenu();if(!$('#modal').hidden&&!state.ended) closeModal();}});
+
+/* ---------- panels ---------- */
+function renderOrders(){
+  const el=$('#orders');el.innerHTML='';
+  if(!state.orders.length){el.innerHTML='<p class="empty">没有待分配的订单。点「新订单」写一个话题。</p>';return;}
+  for(const t of state.orders){
+    const c=document.createElement('div');c.className='order';c.tabIndex=0;
+    c.innerHTML=`<h3>${esc(t.title)}</h3><p>${esc(t.brief)}</p><div class="meta"><span class="num">${t.est}</span><span class="grab">拖动分配</span></div>`;
+    bindDrag(c,t);el.appendChild(c);
+  }
+}
+function renderQueue(){
+  const el=$('#queue');
+  $('#qCount').textContent=state.queue.length?`（${state.queue.length}）`:'';
+  if(!state.queue.length){el.innerHTML='<p class="empty">暂时没有要你拍板的事。员工需要确认、或者做完要验收时，会到你办公室门口排队。</p>';return;}
+  el.innerHTML='';
+  for(const q of state.queue){
+    if(q.type==='gate'){el.appendChild(gateCard(q));continue;}
+    const j=q.job,st=q.step;
+    if(q.type==='review'){
+      const o=j.task.out,card=document.createElement('article');card.className='ask review';
+      card.innerHTML=`<header><span class="pill">验收</span><span>${esc(j.members.map(m=>m.name).join(' + '))} · ${MODE_LABEL[j.origMode]}${j.reworks?` · 第 ${j.reworks+1} 版`:''}</span></header>
+        <h3>${esc(o.title)}</h3><p>${esc(o.body)}</p>
+        ${j.decisions.length?`<ul class="dec">${j.decisions.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
+        <p class="cost num">这单花了 ${yuan(j.cost)}</p>
+        <div class="opts row"><button class="opt yes" data-s="3">通过 ★★★</button><button class="opt" data-s="2">★★</button><button class="opt" data-s="1">★</button><button class="opt no" data-r>打回</button></div>
+        <div class="reasons"${q.showReasons?'':' hidden'}><span class="label">打回原因（员工会记住，以后照做）</span><div class="opts row">${Object.entries(REASONS).map(([k,r])=>`<button class="opt" data-k="${k}">${r.label}</button>`).join('')}</div></div>
+        <button class="link">查看完整记录</button>`;
+      card.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>acceptReview(q,+b.dataset.s));
+      card.querySelector('[data-r]').onclick=()=>{q.showReasons=!q.showReasons;card.querySelector('.reasons').hidden=!q.showReasons;};
+      card.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>rejectReview(q,b.dataset.k));
+      card.querySelector('.link').onclick=()=>select(j.members[0]);
+      el.appendChild(card);continue;
+    }
+    const card=document.createElement('article');card.className='ask '+q.risk;
+    card.innerHTML=`<header><span class="pill">${q.risk==='low'?'低风险':'需要你拍板'}</span><span>${esc(j.members.map(m=>m.name).join(' 和 '))} · ${esc(j.task.title)}</span></header>
+      <h3>${esc(st.title)}</h3><p>${esc(st.detail||'')}</p><div class="opts${st.opts[0].by?'':' row'}"></div><button class="link">查看完整记录</button>`;
+    const box=card.querySelector('.opts');
+    st.opts.forEach((o,i)=>{
+      const b=document.createElement('button');
+      b.className='opt'+(o.by?'':(o.label==='批准'?' yes':o.label==='驳回'?' no':''));
+      b.innerHTML=o.by?`<b>${esc(nameOf(j,o.by))} 的方案</b>${esc(o.label)}`:esc(o.label);
+      b.onclick=()=>resolve(q,i,false);box.appendChild(b);
+    });
+    card.querySelector('.link').onclick=()=>select(j.members[0]);
+    el.appendChild(card);
+  }
+}
+// the real deliverable, with links into the company systems, waiting for the boss's go-ahead
+function gateCard(q){
+  const {p,r,e,res}=q,arts=res.artifacts||[];
+  const doc=arts.find(a=>a.type==='doc'),llm=arts.find(a=>a.type==='llm'),fb=arts.find(a=>a.type==='fallback'),
+    test=arts.find(a=>a.type==='test'),pr=arts.find(a=>a.type==='pr');
+  const card=document.createElement('article');card.className='ask high';
+  card.innerHTML=`<header><span class="pill">要你先看</span><span>${esc(e.name)} · ${esc(p.name)}</span></header>
+    <h3>${esc(r.name)}做完了：${esc(r.out||r.name)}</h3>
+    <p>${esc(res.summary||'（模板生成，没有摘要）')}</p>
+    <p class="cost">${llm?`由 ${esc(llm.model)} 撰写`:`模型没写成，用了模板：${esc(fb?.reason||'')}`}${test?` · 测试通过 ${test.pass} 项，失败 ${test.fail} 项`:''}${pr?` · 合并请求 #${pr.id}`:''}</p>
+    ${res.open_questions?.length?`<ul class="dec">${res.open_questions.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
+    <div class="opts row">${doc?`<a class="opt" href="/company.html#docs/${encodeURIComponent(doc.path)}" target="_blank" rel="noopener">打开文档</a>`:''}${pr?`<a class="opt" href="/company.html#git" target="_blank" rel="noopener">看代码</a>`:''}</div>
+    <div class="opts row"><button class="opt yes" data-ok>通过，交给下一位</button><button class="opt no" data-fix>需要修改</button></div>
+    <form class="say-form" hidden><input type="text" maxlength="200" placeholder="要改什么，比如：补上退款流程" aria-label="修改意见"><button class="btn" type="submit">发回修改</button></form>`;
+  const form=card.querySelector('form');
+  card.querySelector('[data-ok]').onclick=()=>resolveGate(q,true);
+  card.querySelector('[data-fix]').onclick=()=>{form.hidden=!form.hidden;if(!form.hidden) form.querySelector('input').focus();};
+  form.onsubmit=ev=>{ev.preventDefault();const v=form.querySelector('input').value.trim();if(!v){toast('写一句要改什么。');return;}resolveGate(q,false,v);};
+  return card;
+}
+const pips=n=>'■'.repeat(n)+`<i>${'■'.repeat(5-n)}</i>`;
+const KIND={think:'思考',tool:'工具',ask:'请示',boss:'你',sys:'系统',pass:'协作'};
+function renderStaff(){
+  const box=$('#tabStaff');
+  const oldLog=box.querySelector('.log');
+  // keep a half-typed message across re-renders
+  const prevIn=box.querySelector('#sayInput'),keep=prevIn&&box.dataset.emp===state.selected?.id?{v:prevIn.value,f:document.activeElement===prevIn}:null;
+  box.dataset.emp=state.selected?.id||'';
+  const atBottom=!oldLog||oldLog.scrollHeight-oldLog.scrollTop-oldLog.clientHeight<30;
+  const e=state.selected;
+  let h='<div class="chips">'+state.emps.map(x=>`<button class="chip" data-id="${x.id}" aria-pressed="${x===e}"><span class="sw" style="background:${x.shirt}"></span>${esc(x.name)}</button>`).join('')+'</div>';
+  if(!e){h+='<p class="empty">点办公室里的员工，或上面的名字，查看 TA 的完整记录。</p>';box.innerHTML=h;bindChips(box);return;}
+  const st=Math.round(e.stamina);
+  h+=`<div class="emp-head"><span class="sw" style="background:${e.shirt}"></span><div><h3>${esc(e.name)}</h3><p>${esc(e.model)} · Lv.${e.level} · ${statusText(e)}</p></div></div>
+  <div class="traits">${e.traits.map(t=>`<span>${esc(t)}</span>`).join('')}</div>
+  <dl class="stats">
+    <dt>速度</dt><dd class="pips">${pips(e.speed)}</dd>
+    <dt>记忆力</dt><dd class="pips">${pips(e.memory)}</dd>
+    <dt>工资</dt><dd class="num">${yuan(e.price*1.5)} / 千 token</dd>
+    <dt>精力</dt><dd class="stam${st<25?' low':''}"><div class="bar"><i style="width:${st}%"></i></div><span class="num">${st}%</span></dd>
+    <dt>经验</dt><dd class="stam"><div class="bar xp"><i style="width:${e.level>=5?100:Math.round((e.xp-LEVELS[e.level-1])/(LEVELS[e.level]-LEVELS[e.level-1])*100)}%"></i></div><span class="num">${e.level>=5?'满级':`${e.xp}/${LEVELS[e.level]}`}</span></dd>
+    <dt>累计花费</dt><dd class="num">${yuan(e.spent)}</dd>
+  </dl>
+  ${state.emps.length>1?`<div class="bonds"><span class="label">默契度（一起干活越多，交接越顺）</span>${state.emps.filter(o=>o!==e).map(o=>{const n=e.bond[o.id]||0;
+    return `<div><span class="sw" style="background:${o.shirt}"></span>${esc(o.name)}<span class="pips">${pips(Math.min(5,Math.ceil(n/2)))}</span><small>合作 ${n} 次</small></div>`}).join('')}</div>`:''}
+  <div class="prefs"><span class="label">记住的偏好（来自你的打回意见）</span>${e.prefs.length?`<ul>${e.prefs.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`:'<p class="empty">还没有。打回交付时选的原因，会变成 TA 的长期记忆。</p>'}</div>
+  <p class="now">${e.job?`正在做：<b>${esc(e.job.task.title)}</b>${e.job.mode==='meet'?'（会议）':''} · 第 ${Math.min(e.job.i+1,e.job.steps.length)}/${e.job.steps.length} 步`:'手上没有订单'}</p>
+  ${e.job&&e.job.phase!=='review'?`<form class="say-form" id="sayForm"><input id="sayInput" type="text" maxlength="40" placeholder="插句话，比如：重点看价格" aria-label="对员工说的话"><button class="btn" type="submit">插话</button></form>`:''}
+  <div class="row-btns"><button class="btn" id="restBtn"${st>=95?' disabled':''}>下班休息（压缩记忆）</button>${e.job&&e.job.phase!=='review'&&!e.job.task.project?'<button class="btn" id="stopBtn">叫停这单</button>':''}</div>
+  <ul class="log">${e.log.map(l=>`<li class="${l.kind}"><span class="t num">${l.t}</span><span class="x">${KIND[l.kind]?`<span class="k">${KIND[l.kind]}</span>`:''}${l.who?`<span class="w">${esc(l.who)}：</span>`:''}${esc(l.text)}${l.cost?`<span class="c num">${yuan(l.cost)}</span>`:''}</span></li>`).join('')}</ul>`;
+  box.innerHTML=h;bindChips(box);
+  const log=box.querySelector('.log');
+  if(atBottom) log.scrollTop=log.scrollHeight;else if(oldLog) log.scrollTop=oldLog.scrollTop;
+  $('#restBtn').onclick=()=>{
+    e.stamina=100;e.tiredWarned=false;API.empDirty=true;
+    addLog(e,{kind:'sys',text:'前面的对话已压缩成 6 条要点，精力恢复到 100%'});
+    say(e,'睡了一觉，脑子清楚了');
+  };
+  const sf=$('#sayForm');
+  if(sf){
+    const inp=$('#sayInput');
+    if(keep){inp.value=keep.v;if(keep.f){inp.focus();inp.setSelectionRange(keep.v.length,keep.v.length);}}
+    sf.onsubmit=ev=>{ev.preventDefault();const v=inp.value.trim();if(!v) return;inp.value='';interject(e,v);};
+  }
+  const sb=$('#stopBtn');if(sb) sb.onclick=()=>cancelJob(e.job);
+}
+function bindChips(box){box.querySelectorAll('.chip').forEach(c=>c.onclick=()=>select(state.emps.find(x=>x.id===c.dataset.id)));}
+function renderWall(){
+  $('#wallCount').textContent=state.wall.length?`（${state.wall.length}）`:'';
+  const el=$('#tabWall');
+  if(!state.wall.length){el.innerHTML='<p class="empty">还没有交付。员工完成订单后，成果会挂在这里，茶水间的墙上也会多一张纸。</p>';return;}
+  el.innerHTML=state.wall.map(d=>`<details><summary>${esc(d.title)}<b class="stars">${'★'.repeat(d.stars)}${'☆'.repeat(3-d.stars)}</b><span>第 ${d.day} 天 ${d.time} · ${esc(d.by)} · ${MODE_LABEL[d.mode]} · ${yuan(d.cost)}${d.reworks?` · 返工 ${d.reworks} 次`:''}</span></summary>
+    <p>${esc(d.body)}</p>${d.decisions.length?`<ul>${d.decisions.map(x=>`<li>你的决定：${esc(x)}</li>`).join('')}</ul>`:''}</details>`).join('');
+}
+function renderFocus(){
+  const el=$('#focusView');
+  el.innerHTML=`<div class="head"><h2>专注视图</h2><span class="label">和办公室是同一份数据，只是去掉了动画</span></div>
+  <div class="table-scroll"><table><thead><tr><th>员工</th><th>状态</th><th>当前订单</th><th>最新动态</th><th>精力</th><th>花费</th></tr></thead><tbody>
+  ${state.emps.map(e=>{const last=e.log[e.log.length-1];return `<tr><td><span class="sw" style="background:${e.shirt};display:inline-block;margin-right:6px"></span>${esc(e.name)}</td>
+    <td>${statusText(e)}</td><td>${e.job?esc(e.job.task.title):'—'}</td><td>${last?esc(last.text):'—'}</td>
+    <td class="num">${Math.round(e.stamina)}%</td><td class="num">${yuan(e.spent)}</td></tr>`}).join('')}
+  </tbody></table></div>`;
+}
+function select(e){
+  state.selected=e;setTab('staff');dirty();
+}
+function setTab(t){
+  state.tab=t;
+  for(const k of ['staff','proj','wall']){
+    const cap=k[0].toUpperCase()+k.slice(1);
+    $(`#tab${cap}Btn`).setAttribute('aria-selected',t===k);$(`#tab${cap}`).hidden=t!==k;
+  }
+}
+$('#tabStaffBtn').onclick=()=>setTab('staff');
+$('#tabProjBtn').onclick=()=>{setTab('proj');renderProjects();};
+$('#tabWallBtn').onclick=()=>{setTab('wall');renderWall();};
+
+function renderHeader(){
+  $('#clock').textContent=clock()+(state.minutes>=18*60?' 加班':'');
+  $('#dayLabel').textContent=`第 ${state.day} 天`;
+  $('#funds').textContent=yuan(state.funds);
+  $('#fundsBar').style.width=Math.max(0,state.funds/state.budget*100)+'%';
+}
+
+/* ---------- onboarding goals ---------- */
+const GOALS=[['approve','批准一次员工的请求'],['solo','把订单拖给某个员工'],['pair','让两个人分工或开会'],['plan','用「安排工作」给多人分工'],['review','验收一份交付'],['hire','招聘一名新员工']];
+function goal(k){
+  if(state.goals[k]) return;
+  state.goals[k]=true;renderGoals();
+  if(GOALS.every(([g])=>state.goals[g])) toast('上手任务全部完成，之后就看你怎么经营了。','ok');
+}
+function renderGoals(){
+  const n=GOALS.filter(([g])=>state.goals[g]).length,el=$('#goals');
+  el.innerHTML=`<h2>上手任务<span class="num">${n}/${GOALS.length}</span></h2>`+(n===GOALS.length?'<p class="empty">全部完成。</p>'
+    :`<ul>${GOALS.map(([g,t])=>`<li class="${state.goals[g]?'done':''}"><i></i>${t}</li>`).join('')}</ul>`);
+}
+document.addEventListener('keydown',ev=>{
+  if(ev.target.closest('input,textarea,select')||!$('#modal').hidden) return;
+  if(ev.key===' '&&!ev.target.closest('button,.order')){ev.preventDefault();setSpeed(state.speed?0:1);}
+  else if(ev.key==='1') setSpeed(1);
+  else if(ev.key==='2') setSpeed(3);
+});
+
+/* ---------- controls ---------- */
+const HINTS={0:'暂停：所有员工原地冻结',1:'1x：每个确认都由你来点',3:'快进：低风险的确认自动批准'};
+function setSpeed(v){
+  state.speed=v;
+  document.querySelectorAll('[data-speed]').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.speed===v));
+  $('#speedHint').textContent=HINTS[v];
+}
+document.querySelectorAll('[data-speed]').forEach(b=>b.onclick=()=>setSpeed(+b.dataset.speed));
+$('#focusBtn').onclick=()=>{
+  state.focus=!state.focus;$('#focusBtn').setAttribute('aria-pressed',state.focus);
+  $('#stage').hidden=state.focus;$('#focusView').hidden=!state.focus;if(state.focus) renderFocus();
+};
+$('#newOrderBtn').onclick=()=>{const f=$('#newOrderForm');f.hidden=!f.hidden;if(!f.hidden) $('#newOrderInput').focus();};
+$('#newOrderForm').addEventListener('submit',ev=>{
+  ev.preventDefault();
+  const v=$('#newOrderInput').value.trim();
+  if(!v){toast('先写一个话题。');return;}
+  const t=customTask(v);
+  state.orders.push(t);$('#newOrderInput').value='';$('#newOrderForm').hidden=true;renderOrders();
+  API.post('/api/orders',orderRecord(t,'custom'));
+  toast(`新订单「${v}」已放上任务板`);
+});
+
+/* ---------- modal: hire / report ---------- */
+const modal=$('#modal'),card=$('#modalCard');
+function openModal(html){card.innerHTML=html;modal.hidden=false;card.querySelector('button')?.focus();}
+function closeModal(){modal.hidden=true;card.classList.remove('wide');}
+modal.addEventListener('click',ev=>{if(ev.target===modal&&!state.ended) closeModal();});
+$('#hireBtn').onclick=()=>{
+  const freeDesk=DESKS.some(d=>!d.owner);
+  const html=`<h2>招聘</h2><p class="label">同一种 AI 可以招好几个人：他们用同一个模型，但各有自己的名字、偏好、经验和默契。工位一共 ${DESKS.length} 个，机房 1 个。</p>
+  <div class="cands">${Object.entries(TYPES).map(([type,d])=>{
+    const have=state.emps.filter(e=>e.type===type);
+    const lock=d.needs==='server'&&!state.unlocked.server,full=d.needs==='server'?!!SERVER_DESK.owner:!freeDesk;
+    return `<div class="cand"><h4><span class="sw" style="background:${d.looks[have.length%d.looks.length][0]}"></span>${esc(d.model)}</h4>
+      <p>${esc(d.pitch)}</p><p class="label">${esc(modelStatus(type))}</p>
+      <div class="traits">${d.traits.map(t=>`<span>${esc(t)}</span>`).join('')}</div>
+      <dl class="stats"><dt>速度</dt><dd class="pips">${pips(d.speed)}</dd><dt>记忆力</dt><dd class="pips">${pips(d.memory)}</dd>
+        <dt>已有</dt><dd>${have.length?have.map(e=>esc(e.name)).join('、'):'还没有'}</dd></dl>
+      <input type="text" data-name="${type}" value="${esc(nextName(type))}" maxlength="12" aria-label="${esc(d.model)} 新员工的名字">
+      <button class="btn primary" data-hire="${type}"${lock||full?' disabled':''}>${lock?'需要先解锁服务器机房':full?(d.needs==='server'?'机房工位满了':'工位满了'):'录用'}</button></div>`;}).join('')}</div>
+  <div class="row-btns"><button class="btn" id="closeModal">关闭</button></div>`;
+  openModal(html);
+  card.querySelectorAll('[data-hire]').forEach(b=>b.onclick=()=>{
+    const type=b.dataset.hire,name=card.querySelector(`[data-name="${type}"]`).value.trim();
+    if(name&&state.emps.some(e=>e.name===name)){toast(`已经有人叫「${name}」了，换个名字。`,'warn');return;}
+    const e=hire(type,true,{name:name||undefined});closeModal();
+    if(e){toast(`${e.name}（${e.model}）入职了，正走向茶水间`,'ok');select(e);}
+  });
+  $('#closeModal').onclick=closeModal;
+};
+$('#endDayBtn').onclick=()=>openReport(false);
+function openReport(auto){
+  setSpeed(0);
+  const s=state.stats;
+  const html=`<h2>第 ${state.day} 天 · 日报</h2>
+  <p class="label">${auto?'18:00，下班了。':'提前结算。'}以下是今天的情况。</p>
+  <div class="kpis"><div><b class="num">${s.done}</b><span>交付订单</span></div><div><b class="num">${yuan(s.spent)}</b><span>花费（每日预算 ${yuan(state.budget)}）</span></div><div><b class="num">${s.reviews?(s.stars/s.reviews).toFixed(1):'—'}</b><span>平均评分（满分 3 星）· 返工 ${s.reworks} 次</span></div><div><b class="num">${s.asks}</b><span>请你确认（自动批准 ${s.auto} 次）</span></div><div><b class="num">${s.collab}</b><span>员工之间的协作（交接、求助、开会）</span></div></div>
+  <h3>今天你做的决定</h3>
+  ${s.decisions.length?`<ul>${s.decisions.map(d=>`<li>${esc(d.task)}：${esc(d.q)} → <b>${esc(d.a)}</b>${d.split?'（两人有分歧）':''}${d.auto?'（自动）':''}</li>`).join('')}</ul>`:'<p class="empty">今天没有需要你拍板的事。</p>'}
+  <h3>员工</h3>
+  <ul>${state.emps.map(e=>`<li>${esc(e.name)}：花费 ${yuan(e.spent)}，精力 ${Math.round(e.stamina)}%${e.stamina<25?'，建议明天先让 TA 压缩记忆':''}</li>`).join('')}</ul>
+  <div class="row-btns"><button class="btn primary" id="nextDay">开始第 ${state.day+1} 天</button><button class="btn" id="keepWorking">${state.ended?'留下加班':'继续今天'}</button></div>`;
+  openModal(html);
+  $('#nextDay').onclick=()=>{
+    state.day++;state.minutes=9*60;state.ended=false;state.stats=newStats();state.funds=state.budget;planArrivals();
+    state.emps.forEach(e=>{e.stamina=Math.min(100,e.stamina+40);e.tiredWarned=e.stamina<25;e.spent=0;});
+    closeModal();setSpeed(1);toast(`第 ${state.day} 天开工。预算恢复到 ${yuan(state.budget)}，员工精力也恢复了一些。`);dirty();
+  };
+  $('#keepWorking').onclick=()=>{closeModal();setSpeed(1);};
+}
+
+/* ---------- projects: one piece of work split into roles, handed from person to person ---------- */
+const empOf=id=>state.emps.find(e=>e.id===id);
+const empName=id=>empOf(id)?.name||'未指定';
+const projectPeople=p=>[...new Set(p.roles.map(r=>r.who))].map(empOf).filter(Boolean);
+function launchProject(pl,workorder){
+  const p={id:uid(),sid:null,name:pl.name.trim(),goal:pl.goal.trim(),roles:pl.roles.map((r,i)=>({...r,deps:[...r.deps],i,status:'wait',rework:null})),
+    cost:0,reworks:0,decisions:[],done:false};
+  state.projects.push(p);
+  API.post('/api/projects',{name:p.name,goal:p.goal,roles:p.roles.map(r=>({name:r.name,desc:r.desc,out:r.out,deps:r.deps,gate:r.gate,who:r.who})),
+    order_id:pl.order?.id||null,workorder}).then(res=>{
+    if(!res) return;
+    p.sid=res.id;
+    toast(`已建立代码库「${res.repo}」，工作单存入文档库`,'ok');
+    for(const r of p.roles) if(r.status==='run') API.post(`/api/projects/${p.sid}/roles/${r.i}/start`,{});
+  });
+  if(pl.order){state.orders=state.orders.filter(o=>o!==pl.order);renderOrders();}
+  projectPeople(p).forEach(e=>addLog(e,{kind:'sys',text:`加入项目「${p.name}」，负责：${p.roles.filter(r=>r.who===e.id).map(r=>r.name).join('、')}`}));
+  toast(`项目「${p.name}」开始：${p.roles.length} 份分工，${projectPeople(p).length} 个人接力`,'ok');
+  goal('plan');setTab('proj');tickProject(p);dirty();
+}
+// start every role whose inputs are ready and whose owner is free
+function tickProject(p){
+  for(const r of p.roles){
+    if(r.status!=='wait'||!r.deps.every(k=>p.roles[k].status==='done')) continue;
+    const e=empOf(r.who);
+    if(!e||busy(e)) continue;
+    r.status='run';
+    if(p.sid) API.post(`/api/projects/${p.sid}/roles/${r.i}/start`,{});
+    startJob(roleTask(p,r),'solo',[e]);
+  }
+}
+function roleTask(p,r){
+  const base={id:uid(),title:`${p.name} · ${r.name}`,brief:r.desc,project:p,role:r,out:{title:r.out||r.name,body:r.desc}};
+  if(r.rework){const rw=r.rework;r.rework=null;return {...base,isRework:true,feedback:`${rw.label}。${rw.plan}`,title:`${p.name} · ${r.name}（返工）`,solo:revision('solo',rw)};}
+  const deps=r.deps.map(k=>p.roles[k]);
+  const steps=[deps.length?{k:'tool',t:`读取上游交付：${deps.map(d=>`${d.out||d.name}（${empName(d.who)}）`).join('、')}`,tok:900}
+    :{k:'think',t:`先看项目目标：${p.goal||p.name}`,tok:600},
+    {k:'think',t:`我的分工：${r.desc||r.name}`,tok:700}];
+  // someone else is working in parallel: sync with them before producing
+  const sib=p.roles.find(o=>o!==r&&o.status==='run'&&o.who!==r.who);
+  if(sib) steps.push({k:'help',to:sib.who,t:`我在做${r.name}，${sib.name}那边有什么要对齐的？`,reply:`${sib.out||sib.name}按约定的格式出，有变动我马上同步你。`,tok:600});
+  steps.push({k:'tool',t:`整理思路，准备写${r.out||r.name}`,tok:1200});
+  steps.push({k:'say',t:'准备好了，开始写正式交付物。',tok:200});
+  return {...base,solo:steps};
+}
+// the prep in the office is done; now the employee's own model writes the real deliverable before anything is handed over
+function roleDone(j){
+  const p=j.task.project,r=j.task.role,e=j.members[0];
+  state.jobs=state.jobs.filter(x=>x!==j);e.job=null;
+  p.cost+=j.cost;p.decisions.push(...j.decisions);
+  writeRole(p,r,e,{cost:j.cost,decisions:j.decisions,transcript:j.transcript,rework:!!j.task.isRework,feedback:j.task.feedback||null,day:state.day});
+}
+function writeRole(p,r,e,body){
+  if(!p.sid){afterWrite(p,r,e,null);return;}
+  r.status='writing';e.writing=r;
+  const m=modelLabel(e);
+  addLog(e,{kind:'sys',text:m?`开始用 ${m} 写正式交付物：${r.out||r.name}`:`开始写正式交付物：${r.out||r.name}（没有接入模型，会用模板）`});
+  say(e,m?`正在用 ${m} 写${r.out||r.name}…`:`正在整理${r.out||r.name}…`,'think');
+  dirty();
+  API.post(`/api/projects/${p.sid}/roles/${r.i}/done`,body).then(res=>afterWrite(p,r,e,res));
+}
+function afterWrite(p,r,e,res){
+  e.writing=null;
+  if(res){
+    logArtifacts(e,res.artifacts);
+    const llm=res.artifacts.find(a=>a.type==='llm');
+    if(llm&&llm.cny) chargeReal(e,llm.cny);
+    if(r.gate){gateReview(p,r,e,res);return;}
+  }
+  handOver(p,r,e);
+}
+// a role the boss asked to see first comes to the door with the real deliverable
+function gateReview(p,r,e,res){
+  r.status='gate';e.waiting=true;e.carry=true;
+  say(e,'老板，这份要请你先看一下');
+  state.queue.push({id:uid(),type:'gate',p,r,e,res,risk:'high',age:0});
+  placeQueue();renderQueue();dirty();
+}
+function resolveGate(q,ok,feedback){
+  if(!state.queue.includes(q)) return;
+  state.queue=state.queue.filter(x=>x!==q);
+  const {p,r,e}=q;
+  e.waiting=false;e.carry=false;
+  const decision=ok?'通过，交给下一位':`需要修改：${feedback}`;
+  p.decisions.push(`${r.name}：${decision}`);
+  addLog(e,{kind:'boss',text:decision});
+  API.post('/api/approvals',{kind:'approve',task:`${p.name} · ${r.name}`,project_id:p.sid,title:`${r.name}做完了：${r.out||r.name}`,detail:q.res.summary||'',
+    risk:'high',decision,auto:false,people:[e.name],day:state.day,time:clock()});
+  goal('approve');
+  if(ok) handOver(p,r,e);
+  else{
+    say(e,'明白，马上改');goTo(e,e.desk.seat);
+    writeRole(p,r,e,{cost:0,decisions:[decision],transcript:[`老板：${decision}`],rework:true,feedback,day:state.day});
+  }
+  placeQueue();renderQueue();
+}
+function handOver(p,r,e){
+  r.status='done';
+  addLog(e,{kind:'sys',text:`完成分工「${r.name}」`});
+  for(const o of p.roles.filter(o=>o.deps.includes(r.i))){
+    const to=empOf(o.who);
+    if(!to||to===e) continue;
+    addLog(e,{kind:'pass',text:`交给 ${to.name}：${r.out||r.name}`});
+    addLog(to,{kind:'pass',who:e.name,text:`收到 ${r.out||r.name}，用于「${o.name}」`});
+    sendPacket(e,to,()=>{say(to,`收到${r.out||r.name}`);bond(e,to);state.stats.collab++;dirty();});
+  }
+  if(p.roles.every(o=>o.status==='done')) projectToReview(p,e);
+  else{say(e,`${r.name}搞定`);goTo(e,freeLounge()||LOUNGE[0]);e.wanderT=4+Math.random()*4;}
+  dirty();
+}
+// whoever finishes last brings the whole project to your door
+function projectToReview(p,e){
+  e.carry=true;e.waiting=true;say(e,'整个项目做完了，请老板验收');
+  const pj={task:{title:p.name,out:{title:`《${p.name}》`,body:p.roles.map(o=>`${o.name}（${empName(o.who)}）：${o.out||'—'}`).join('；')}},
+    members:[e],mode:'solo',origMode:'project',decisions:p.decisions,cost:p.cost,reworks:p.reworks,phase:'review',project:p};
+  state.queue.push({id:uid(),type:'review',job:pj,risk:'high',age:0});
+  placeQueue();renderQueue();
+}
+function reworkProject(j,key){
+  const p=j.project,rs=REASONS[key],last=p.roles[p.roles.length-1],carrier=j.members[0];
+  carrier.waiting=false;carrier.carry=false;
+  if(p.sid) API.post(`/api/projects/${p.sid}/review`,{reason:rs.label});
+  p.reworks++;state.stats.reworks++;
+  projectPeople(p).forEach(m=>{addLog(m,{kind:'boss',text:`项目打回：${rs.label}`});learn(m,rs);});
+  last.status='wait';last.rework=rs;
+  if(!carrier.job) goTo(carrier,freeLounge()||LOUNGE[0]);
+  toast(`项目已打回：${rs.label}。由${empName(last.who)}按「${last.name}」返工。`);
+  placeQueue();renderQueue();dirty();
+}
+function renderProjects(){
+  const el=$('#tabProj');
+  const open=state.projects.filter(p=>!p.done).length;
+  $('#projCount').textContent=open?`（${open}）`:'';
+  if(!state.projects.length){el.innerHTML='<p class="empty">还没有多人项目。点顶部「安排工作」，把一份工作拆给几个人接力完成。</p>';return;}
+  const ST={wait:'待开始',run:'进行中',writing:'正在写交付物',gate:'等你确认',done:'已完成'};
+  el.innerHTML=[...state.projects].reverse().map(p=>`<div class="proj"><b>${esc(p.name)}${p.done?' · 已验收':''}</b>
+    <span class="cost num">${p.roles.filter(r=>r.status==='done').length}/${p.roles.length} 份分工完成 · 已花 ${yuan(p.cost)}</span>
+    <ol>${p.roles.map(r=>{
+      const waitFor=r.deps.filter(k=>p.roles[k].status!=='done').map(k=>p.roles[k].name),e=empOf(r.who);
+      const note=r.status!=='wait'?'':waitFor.length?`等 ${waitFor.join('、')}`:e&&(e.job||e.waiting)?`${e.name} 手上还有别的活`:'马上开始';
+      return `<li class="st-${r.status}">${esc(r.name)} · ${esc(empName(r.who))} · ${ST[r.status]}${note?`（${esc(note)}）`:''}</li>`;}).join('')}</ol></div>`).join('');
+}
+
+/* ---------- work planner window ---------- */
+const TEMPLATES={
+  app:{name:'点餐小程序',goal:'做一个餐厅用的点餐小程序：顾客扫码看菜单、加购物车、下单，后厨能看到新订单。',roles:[
+    {name:'需求分析',desc:'梳理点餐流程：看菜单、加购物车、下单、出餐通知；列出页面清单和边界情况。',out:'需求文档（PRD）',deps:[],gate:true},
+    {name:'界面设计',desc:'画出菜单页、购物车、订单状态 3 个页面的线框图。',out:'页面线框图',deps:[0],gate:false},
+    {name:'后端开发',desc:'设计菜品、订单两张表，提供菜单查询、下单、订单状态三个接口。',out:'后端接口和接口文档',deps:[0],gate:false},
+    {name:'前端开发',desc:'按线框图实现 3 个页面，对接后端接口。',out:'前端页面代码',deps:[1,2],gate:false},
+    {name:'测试验收',desc:'走一遍完整点餐流程，记录问题，修完后回归。',out:'测试报告',deps:[2,3],gate:true}]},
+  report:{name:'竞品调研报告',goal:'调研 5 款竞品，给出我们能切入的机会点。',roles:[
+    {name:'资料收集',desc:'找 5 款竞品的定价、功能、用户评价，整理成表。',out:'资料表',deps:[],gate:false},
+    {name:'分析撰写',desc:'基于资料表写分析和结论，给出 3 个机会点。',out:'报告初稿',deps:[0],gate:false},
+    {name:'审稿把关',desc:'检查数据来源和逻辑漏洞，提出修改意见并定稿。',out:'定稿报告',deps:[1],gate:true}]},
+  blank:{name:'',goal:'',roles:[{name:'',desc:'',out:'',deps:[],gate:false}]},
+};
+let plan=null;
+function seedPlan(key,over={}){
+  const t=TEMPLATES[key],ids=state.emps.map(e=>e.id);
+  plan={name:over.name??t.name,goal:over.goal??t.goal,order:over.order||null,
+    roles:t.roles.map((r,i)=>({...r,deps:[...r.deps],who:ids[i%ids.length]}))};
+}
+function openPlanner(seed){
+  if(seed) seedPlan(seed.order?'report':'app',seed);
+  else if(!plan) seedPlan('app');
+  card.classList.add('wide');
+  openModal(plannerHTML());bindPlanner();
+}
+function plannerHTML(){
+  const opts=id=>state.emps.map(e=>`<option value="${e.id}"${e.id===id?' selected':''}>${esc(e.name)} · ${esc(e.model)}</option>`).join('');
+  return `<h2>安排工作</h2>
+  <p class="label">把一份工作拆成几份分工，每份指定负责人、交付物和开始条件。员工按顺序接力，没有依赖关系的会同时开工。</p>
+  <div class="tpl">从模板开始：<button type="button" class="btn" data-tpl="app">点餐小程序</button><button type="button" class="btn" data-tpl="report">调研报告</button><button type="button" class="btn" data-tpl="blank">空白</button></div>
+  <label class="field">项目名<input id="pName" value="${esc(plan.name)}" placeholder="比如：点餐小程序"></label>
+  <label class="field">目标（每个人开工前都会先读这一段）<textarea id="pGoal" rows="2" placeholder="要做成什么样，给谁用">${esc(plan.goal)}</textarea></label>
+  <div class="roles">${plan.roles.map((r,i)=>`<div class="role">
+    <div class="role-head"><span class="num">${i+1}</span><input data-f="name" data-i="${i}" value="${esc(r.name)}" placeholder="分工名称" aria-label="第 ${i+1} 份分工的名称"><select data-f="who" data-i="${i}" aria-label="负责人">${opts(r.who)}</select>${plan.roles.length>1?`<button type="button" data-del="${i}" aria-label="删除这份分工">×</button>`:''}</div>
+    <textarea data-f="desc" data-i="${i}" rows="2" placeholder="具体要做什么" aria-label="具体要做什么">${esc(r.desc)}</textarea>
+    <div class="role-row"><label>交付物<input data-f="out" data-i="${i}" value="${esc(r.out)}" placeholder="比如：接口文档"></label><label class="chk"><input type="checkbox" data-f="gate" data-i="${i}"${r.gate?' checked':''}>做完先给我确认</label></div>
+    ${i?`<div class="deps"><span class="label">等这些完成再开始：</span>${plan.roles.slice(0,i).map((o,k)=>`<button type="button" class="dep" data-dep="${i}" data-k="${k}" aria-pressed="${r.deps.includes(k)}">${k+1}. ${esc(o.name||'未命名')}</button>`).join('')}</div>`:'<p class="label">第一个开工，不用等别人</p>'}
+  </div>`).join('')}</div>
+  <div class="row-btns"><button type="button" class="btn" id="addRole">添加一份分工</button></div>
+  <h3>执行顺序</h3><div class="stages" id="stages"></div>
+  <details class="export"><summary>工作单：可以直接复制给真实的 AI 或同事去执行</summary><textarea id="exportText" rows="12" readonly aria-label="工作单"></textarea><button type="button" class="btn" id="copyPlan">复制工作单</button></details>
+  <p class="plan-err" id="planErr" hidden></p>
+  <div class="row-btns"><button type="button" class="btn primary" id="startPlan">开始执行</button><button type="button" class="btn" id="closePlan">先放着</button></div>`;
+}
+function renderStages(){
+  const lv=[];plan.roles.forEach((r,i)=>{lv[i]=r.deps.length?1+Math.max(...r.deps.map(k=>lv[k])):0;});
+  const cols=[];for(let s=0;s<=Math.max(...lv);s++) cols.push(plan.roles.map((r,i)=>[r,i]).filter(([,i])=>lv[i]===s));
+  $('#stages').innerHTML=cols.map((c,s)=>`${s?'<span class="arrow" aria-hidden="true">→</span>':''}<div class="stg"><span class="label">第 ${s+1} 步${c.length>1?' · 同时进行':''}</span>${c.map(([r,i])=>`<span class="r">${i+1}. ${esc(r.name||'未命名')} <b>${esc(empName(r.who))}</b>${r.gate?' · 要你确认':''}</span>`).join('')}</div>`).join('');
+  $('#exportText').value=planMarkdown();
+}
+function planMarkdown(){
+  const L=[`# 项目：${plan.name||'未命名'}`,'',`目标：${plan.goal||'（未填写）'}`,'','## 分工',''];
+  plan.roles.forEach((r,i)=>{
+    const e=empOf(r.who),next=plan.roles.filter(o=>o.deps.includes(i));
+    L.push(`### ${i+1}. ${r.name||'未命名'}（负责人：${e?`${e.name} / ${e.model}`:'未指定'}）`,
+      `- 要做什么：${r.desc||'（未填写）'}`,
+      `- 交付物：${r.out||'（未填写）'}`,
+      `- 开始条件：${r.deps.length?r.deps.map(k=>`等「${plan.roles[k].name}」交付`).join('，'):'立即开始'}`,
+      `- 完成后：${next.length?next.map(o=>`交给「${o.name}」（${empName(o.who)}）`).join('，'):'交给老板验收'}${r.gate?'；交接前先请老板确认':''}`,'');
+  });
+  L.push('## 协作规则','','- 开工前先读项目目标和上游交付物。','- 和同时进行的同事对齐接口、格式等约定，有变动马上同步。','- 遇到需要拍板的事，停下来问老板，不要自己猜。','- 交付物写清楚放在哪里、怎么用。');
+  return L.join('\n');
+}
+function rerenderPlanner(){const st=card.scrollTop;card.innerHTML=plannerHTML();bindPlanner();card.scrollTop=st;}
+function bindPlanner(){
+  const c=card;
+  $('#pName').oninput=ev=>{plan.name=ev.target.value;renderStages();};
+  $('#pGoal').oninput=ev=>{plan.goal=ev.target.value;renderStages();};
+  c.querySelectorAll('[data-f]').forEach(inp=>{
+    const i=+inp.dataset.i,f=inp.dataset.f;
+    inp.addEventListener(inp.tagName==='SELECT'||inp.type==='checkbox'?'change':'input',()=>{
+      plan.roles[i][f]=inp.type==='checkbox'?inp.checked:inp.value;
+      if(f==='name') c.querySelectorAll(`.dep[data-k="${i}"]`).forEach(b=>{b.textContent=`${i+1}. ${inp.value||'未命名'}`;});
+      renderStages();
+    });
+  });
+  c.querySelectorAll('.dep').forEach(b=>b.onclick=()=>{
+    const r=plan.roles[+b.dataset.dep],k=+b.dataset.k,at=r.deps.indexOf(k);
+    if(at>=0) r.deps.splice(at,1);else r.deps.push(k);
+    b.setAttribute('aria-pressed',at<0);renderStages();
+  });
+  c.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
+    const i=+b.dataset.del;plan.roles.splice(i,1);
+    plan.roles.forEach(r=>{r.deps=r.deps.filter(k=>k!==i).map(k=>k>i?k-1:k);});
+    rerenderPlanner();
+  });
+  c.querySelectorAll('[data-tpl]').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.tpl;seedPlan(k,k==='blank'?{name:plan.name,goal:plan.goal,order:plan.order}:{order:plan.order});rerenderPlanner();
+  });
+  $('#addRole').onclick=()=>{
+    const n=plan.roles.length;
+    plan.roles.push({name:'',desc:'',out:'',deps:n?[n-1]:[],gate:false,who:state.emps[n%state.emps.length].id});
+    rerenderPlanner();c.querySelector(`[data-f="name"][data-i="${n}"]`)?.focus();
+  };
+  $('#copyPlan').onclick=()=>{
+    const ta=$('#exportText');
+    const fallback=()=>{ta.focus();ta.select();toast('已选中工作单，按 Ctrl+C 复制');};
+    if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).then(()=>toast('工作单已复制','ok'),fallback);else fallback();
+  };
+  $('#closePlan').onclick=closeModal;
+  $('#startPlan').onclick=()=>{
+    const err=!plan.name.trim()?'先给项目起个名字。':plan.roles.some(r=>!r.name.trim())?'每份分工都要有名称。':plan.roles.some(r=>!empOf(r.who))?'每份分工都要指定负责人。':'';
+    const el=$('#planErr');
+    if(err){el.textContent=err;el.hidden=false;return;}
+    const md=planMarkdown(),p=plan;plan=null;closeModal();launchProject(p,md);
+  };
+  renderStages();
+}
+$('#planBtn').onclick=()=>openPlanner();
+
+/* ---------- toast ---------- */
+function toast(msg,kind=''){
+  const t=document.createElement('div');t.className='toast '+kind;t.textContent=msg;
+  const box=$('#toasts');box.appendChild(t);
+  while(box.children.length>3) box.firstChild.remove();
+  setTimeout(()=>t.remove(),3800);
+}
+
+/* ---------- boot: pick up where the company left off, or start a realistic first morning ---------- */
+async function freshStart(){
+  const claude=hire('claude',false,{id:'claude'}),gpt=hire('gpt',false,{id:'gpt'});
+  claude.spot=claude.desk.seat;claude.x=claude.spot.x;claude.y=claude.spot.y;claude.stamina=62;
+  gpt.spot=LOUNGE[0];gpt.x=gpt.spot.x;gpt.y=gpt.spot.y;
+  addLog(claude,{kind:'sys',text:'入职，第一天上班'});addLog(gpt,{kind:'sys',text:'入职，第一天上班'});
+  state.orders=[TASKS[0],TASKS[1],TASKS[2],TASKS[3]];
+  if(API.on){
+    await API.post('/api/employees/sync',state.emps.map(empSnapshot));
+    await Promise.all(state.orders.map(t=>API.post('/api/orders',orderRecord(t,'preset'))));
+  }
+  state.minutes=9*60+3;
+  const j0=startJob(TASKS[0],'solo',[claude]);
+  state.minutes=9*60+5;execStep(j0,j0.steps[0]);j0.i++;
+  state.minutes=9*60+9;execStep(j0,j0.steps[1]);j0.i++;
+  j0.phase='run';j0.t=j0.dur-1.6;claude.bubble=null;
+  state.minutes=9*60+12;
+  state.selected=claude;
+}
+function restore(saved){
+  for(const s of saved.employees){
+    const pr=s.profile||{},type=pr.type||s.id;
+    const e=hire(type,false,{id:s.id,name:s.name,look:pr.shirt?[pr.shirt,pr.hair,pr.skin]:null});
+    if(!e) continue;
+    Object.assign(e,{level:s.level||1,xp:s.xp||0,speed:s.speed||e.speed,memory:s.memory||e.memory,stamina:s.stamina??100,spent:s.spent||0,prefs:s.prefs||[],bond:s.bond||{}});
+    const sp=freeLounge()||LOUNGE[0];e.spot=sp;e.x=sp.x;e.y=sp.y;
+    addLog(e,{kind:'sys',text:'回到公司上班'});
+  }
+  state.completed=saved.completed||0;
+  for(const k of ['server','archive']) state.unlocked[k]=state.completed>=ROOMS[k].lock;
+  drawBG();buildRoomLabels();
+  state.orders=saved.orders.map(o=>TASKS.find(t=>t.id===o.task_key)||Object.assign(customTask(o.title,o.brief),{id:o.id,est:o.est||'约 ¥1.0'}));
+  for(const sp of saved.projects){
+    const p={id:uid(),sid:sp.id,name:sp.name,goal:sp.goal,cost:sp.cost||0,reworks:sp.reworks||0,decisions:[],done:false,
+      roles:sp.roles.map(r=>({name:r.name,desc:r.description,out:r.output,deps:r.deps,gate:r.gate,who:r.who,i:r.idx,status:r.status==='done'?'done':'wait',rework:null}))};
+    state.projects.push(p);
+    // a project that was already finished is waiting at the door for review again
+    if(p.roles.every(r=>r.status==='done')) projectToReview(p,empOf(p.roles[p.roles.length-1].who)||state.emps[0]);
+  }
+  state.selected=state.emps[0]||null;
+  if(saved.projects.length) toast(`接着做之前的 ${saved.projects.length} 个项目，没做完的分工会重新开始`);
+}
+async function boot(){
+  drawBG();buildRoomLabels();
+  const saved=await API.boot();
+  if(API.on) MODELS=await fetch('/api/models',{cache:'no-store'}).then(r=>r.json()).catch(()=>null);
+  const models=MODELS?(MODELS.fake?'测试替身（不调用真实模型）':Object.values(MODELS.providers).map(p=>`${p.name}：${p.model}（${p.hint}）`).join('；')):'';
+  $('#conn').textContent=API.on
+    ?`已连接公司后端，交付写进 Git、文档库和数据库。项目分工由员工自己的模型撰写，失败时用模板。${models}`
+    :'演示模式：没有连接公司后端，记录不会保存。在本机运行 node server.js 后打开 http://localhost:5300 使用完整版。';
+  $('#sysLink').hidden=!API.on;
+  if(saved&&saved.employees.length) restore(saved);
+  else await freshStart();
+  planArrivals();
+  renderOrders();renderQueue();renderWall();renderHeader();renderGoals();renderProjects();renderStaff();
+}
+boot();
+// the simulation keeps running in a background tab (agents don't stop working); drawing only happens when visible
+let last=performance.now(),acc=0;
+setInterval(()=>{
+  const now=performance.now();let dt=Math.min(1.5,(now-last)/1000);last=now;T+=dt;acc+=dt;
+  while(dt>0){const d=Math.min(.1,dt);update(d);dt-=d;}
+  if(acc>.25){acc=0;renderHeader();if(state.dirty){state.dirty=false;renderStaff();renderProjects();if(state.focus) renderFocus();}}
+},40);
+function frame(){
+  if(!state.focus){draw();syncOverlay();}
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>

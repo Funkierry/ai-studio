@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>公司系统 · AI 工作室</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&display=swap">
+<style>
+/* Layout: top bar with company totals; tabs; each system is a sidebar list + main viewer. Same night-shift palette as the office. */
+:root{
+  --bg:#1b1824;--panel:#25212f;--panel-2:#2f2a3c;--line:#463e5a;--text:#ebe6f2;--muted:#a69fb8;
+  --accent:#f2b544;--ok:#78cfa2;--bad:#ee7b86;--info:#7fb6e6;--violet:#c3a6ea;
+  --font-pixel:"Pixelify Sans","PingFang SC","Microsoft YaHei",monospace;
+  --font-body:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;
+  --font-mono:ui-monospace,"Cascadia Mono",Consolas,"Microsoft YaHei",monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{min-height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 32px}
+h1,h2,h3{margin:0;font-weight:600;text-wrap:balance}
+p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.px{background:var(--panel);border:2px solid var(--line);box-shadow:4px 4px 0 rgba(0,0,0,.35)}
+.btn{background:var(--panel-2);border:2px solid var(--line);padding:4px 12px;box-shadow:inset 0 -3px 0 rgba(0,0,0,.28);white-space:nowrap;text-decoration:none;display:inline-block}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.num{font-family:var(--font-pixel);font-variant-numeric:tabular-nums}
+.label{font-size:11px;letter-spacing:.08em;color:var(--muted)}
+.empty{color:var(--muted);font-size:13px}
+
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;padding:10px 14px;margin-bottom:14px}
+.top h1{font-family:var(--font-pixel);font-size:22px;margin-right:auto}
+.kpis{display:flex;flex-wrap:wrap;gap:6px 18px}
+.kpi{display:flex;flex-direction:column}
+.kpi b{font-size:18px;line-height:1.1}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px;border-bottom:2px solid var(--line)}
+.tabs a{padding:6px 14px;color:var(--muted);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-2px;font-family:var(--font-pixel);font-size:16px}
+.tabs a[aria-current="page"]{color:var(--text);border-bottom-color:var(--accent)}
+
+.sys{display:grid;grid-template-columns:260px minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:820px){.sys{grid-template-columns:minmax(0,1fr)}}
+.side{padding:10px;display:flex;flex-direction:column;gap:4px;max-height:78vh;overflow-y:auto}
+.side h3{font-size:12px;color:var(--muted);letter-spacing:.08em;margin:8px 4px 2px}
+.item{text-align:left;padding:5px 8px;border:2px solid transparent;display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:13px;width:100%}
+.item:hover{border-color:var(--line)}
+.item[aria-current="true"]{border-color:var(--accent);background:var(--panel-2)}
+.item small{color:var(--muted);flex:none}
+.item span{min-width:0;overflow-wrap:anywhere}
+.main{padding:14px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.main-head{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.main-head h2{font-size:17px;margin-right:auto;overflow-wrap:anywhere}
+.subtabs{display:flex;gap:4px;flex-wrap:wrap}
+.subtabs button{padding:3px 10px;border:2px solid var(--line);font-size:13px;color:var(--muted)}
+.subtabs button[aria-pressed="true"]{border-color:var(--accent);color:var(--text)}
+select,input[type=text],textarea{background:var(--bg);border:2px solid var(--line);padding:5px 8px}
+.list{display:flex;flex-direction:column}
+.row{display:grid;grid-template-columns:80px minmax(0,1fr) auto;gap:10px;padding:7px 4px;border-bottom:1px solid var(--line);text-align:left;width:100%;align-items:baseline}
+button.row:hover{background:var(--panel-2)}
+.row code{font-family:var(--font-mono);color:var(--accent);font-size:12px}
+.row .meta{color:var(--muted);font-size:12px;white-space:nowrap}
+.pill{font-size:11px;padding:0 6px;border:1px solid currentColor;letter-spacing:.04em;white-space:nowrap}
+.st-open{color:var(--info)}.st-merged{color:var(--ok)}.st-conflict{color:var(--bad)}
+pre.code{margin:0;background:var(--bg);border:2px solid var(--line);padding:12px;overflow:auto;max-height:70vh;font-family:var(--font-mono);font-size:12.5px;line-height:1.5;white-space:pre}
+.diff .add{color:var(--ok)}.diff .del{color:var(--bad)}.diff .hunk{color:var(--info)}.diff .file{color:var(--accent);font-weight:600}
+
+.md{max-width:72ch;font-size:14.5px;line-height:1.75;overflow-wrap:anywhere}
+.md h1{font-size:22px;margin:4px 0 12px}.md h2{font-size:17px;margin:20px 0 8px;color:var(--accent)}.md h3{font-size:15px;margin:16px 0 6px}
+.md p{margin:8px 0}.md ul,.md ol{margin:6px 0;padding-left:22px}
+.md blockquote{margin:8px 0;padding:6px 12px;border-left:3px solid var(--line);color:var(--muted);font-size:13px}
+.md code{font-family:var(--font-mono);background:var(--panel-2);padding:0 4px;font-size:12.5px}
+.md pre{background:var(--bg);border:2px solid var(--line);padding:10px;overflow:auto;font-family:var(--font-mono);font-size:12.5px;line-height:1.35}
+.md table{border-collapse:collapse;margin:8px 0;font-size:13px;display:block;overflow-x:auto}
+.md th,.md td{border:1px solid var(--line);padding:4px 10px;text-align:left}
+.md a{color:var(--info)}
+.editor{width:100%;min-height:55vh;font-family:var(--font-mono);font-size:13px;line-height:1.6}
+.versions{display:flex;flex-direction:column;gap:2px;font-size:12px}
+.versions button{text-align:left;padding:3px 6px;border:1px solid transparent}
+.versions button:hover,.versions button[aria-current="true"]{border-color:var(--line)}
+
+.table-scroll{overflow:auto;max-height:68vh;border:2px solid var(--line)}
+table.data{border-collapse:collapse;width:max-content;min-width:100%;font-size:13px}
+table.data th,table.data td{padding:5px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;max-width:420px;overflow-wrap:anywhere}
+table.data th{position:sticky;top:0;background:var(--panel-2);color:var(--muted);font-weight:600;font-size:12px}
+table.data td.n{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.sql{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start}
+.sql textarea{flex:1;min-width:240px;min-height:64px;font-family:var(--font-mono);font-size:13px}
+.err{color:var(--bad);font-size:13px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--panel);border:2px solid var(--ok);padding:7px 14px;font-size:13px;z-index:20}
+</style>
+</head>
+<body>
+<header class="top px">
+  <h1>公司系统</h1>
+  <div class="kpis" id="kpis"></div>
+  <a class="btn" href="/">回到办公室</a>
+</header>
+<nav class="tabs" aria-label="公司系统">
+  <a href="#git" data-tab="git">代码库</a>
+  <a href="#docs" data-tab="docs">文档库</a>
+  <a href="#db" data-tab="db">数据库</a>
+  <a href="#records" data-tab="records">事务记录</a>
+</nav>
+<main id="view"></main>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(()=>{
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function api(url,opt){
+  const r=await fetch(url,{cache:'no-store',...opt});
+  const d=await r.json().catch(()=>({error:'服务器没有返回内容'}));
+  if(!r.ok) throw new Error(d.error||r.status);
+  return d;
+}
+const qs=o=>new URLSearchParams(o).toString();
+function toast(t){const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,2600);}
+const view=$('#view');
+const fail=e=>{view.innerHTML=`<div class="main px"><p class="err">${esc(e.message)}</p></div>`;};
+
+/* ---------- markdown (headings, lists, tables, code, quotes, links) ---------- */
+function inline(s){
+  return esc(s).replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g,(m,t,u)=>/^https?:/.test(u)?`<a href="${u}" target="_blank" rel="noopener">${t}</a>`:`<a href="#" data-doc="${u}">${t}</a>`);
+}
+function md(src){
+  const L=src.replace(/\r/g,'').split('\n'),out=[];let i=0;
+  while(i<L.length){
+    const l=L[i];
+    if(l.startsWith('```')){const buf=[];i++;while(i<L.length&&!L[i].startsWith('```')) buf.push(L[i++]);i++;out.push(`<pre>${esc(buf.join('\n'))}</pre>`);continue;}
+    const h=l.match(/^(#{1,3})\s+(.*)/);if(h){out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`);i++;continue;}
+    if(l.startsWith('|')){
+      const rows=[];while(i<L.length&&L[i].startsWith('|')) rows.push(L[i++]);
+      const cells=r=>r.replace(/^\||\|$/g,'').split('|').map(c=>c.trim());
+      const body=rows.filter((r,k)=>!(k===1&&/^\|?[\s:|-]+\|?$/.test(r)));
+      out.push('<table>'+body.map((r,k)=>`<tr>${cells(r).map(c=>k?`<td>${inline(c)}</td>`:`<th>${inline(c)}</th>`).join('')}</tr>`).join('')+'</table>');continue;
+    }
+    if(/^\s*[-*]\s/.test(l)){const buf=[];while(i<L.length&&/^\s*[-*]\s/.test(L[i])) buf.push(L[i++].replace(/^\s*[-*]\s/,''));out.push('<ul>'+buf.map(x=>`<li>${inline(x)}</li>`).join('')+'</ul>');continue;}
+    if(/^\d+\.\s/.test(l)){const buf=[];while(i<L.length&&/^\d+\.\s/.test(L[i])) buf.push(L[i++].replace(/^\d+\.\s/,''));out.push('<ol>'+buf.map(x=>`<li>${inline(x)}</li>`).join('')+'</ol>');continue;}
+    if(l.startsWith('>')){const buf=[];while(i<L.length&&L[i].startsWith('>')) buf.push(L[i++].replace(/^>\s?/,''));out.push(`<blockquote>${buf.map(inline).join('<br>')}</blockquote>`);continue;}
+    if(!l.trim()){i++;continue;}
+    const buf=[];while(i<L.length&&L[i].trim()&&!/^(#|\||```|>|\s*[-*]\s|\d+\.\s)/.test(L[i])) buf.push(L[i++]);
+    out.push(`<p>${buf.map(inline).join('<br>')}</p>`);
+  }
+  return out.join('');
+}
+function dataTable(res){
+  if(!res.rows.length) return '<p class="empty">没有数据。</p>';
+  const isNum=v=>typeof v==='number';
+  return `<div class="table-scroll"><table class="data"><thead><tr>${res.columns.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${
+    res.rows.map(r=>`<tr>${res.columns.map(c=>`<td class="${isNum(r[c])?'n':''}">${esc(r[c]??'')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+
+/* ---------- 代码库 ---------- */
+const G={repo:null,ref:'main',sub:'log'};
+async function gitView(){
+  const repos=await api('/api/git/repos');
+  if(!repos.length){view.innerHTML='<div class="main px"><p class="empty">还没有代码库。在办公室点「安排工作」立项后，每个项目都会有一个自己的 Git 仓库。</p></div>';return;}
+  if(!repos.find(r=>r.slug===G.repo)){G.repo=repos[repos.length-1].slug;G.ref='main';}
+  const repo=repos.find(r=>r.slug===G.repo);
+  if(!repo.branches.includes(G.ref)) G.ref='main';
+  view.innerHTML=`<div class="sys"><aside class="side px"><h3>仓库</h3>${repos.map(r=>`<button class="item" data-repo="${esc(r.slug)}" aria-current="${r.slug===G.repo}"><span>${esc(r.slug)}</span><small>${r.open_prs?`${r.open_prs} 个待合并`:esc(r.tags.at(-1)||'')}</small></button>`).join('')}</aside>
+  <section class="main px"><div class="main-head"><h2>${esc(repo.slug)}</h2>
+    <label class="label">分支 <select id="ref">${repo.branches.map(b=>`<option${b===G.ref?' selected':''}>${esc(b)}</option>`).join('')}</select></label>
+    <div class="subtabs">${[['log','提交记录'],['tree','文件'],['prs','合并请求']].map(([k,t])=>`<button data-sub="${k}" aria-pressed="${G.sub===k}">${t}</button>`).join('')}</div></div>
+    ${repo.tags.length?`<p class="label">发布标签：${repo.tags.map(esc).join('、')}</p>`:''}
+    <div id="gitBody"></div></section></div>`;
+  view.querySelectorAll('[data-repo]').forEach(b=>b.onclick=()=>{G.repo=b.dataset.repo;G.ref='main';gitView();});
+  view.querySelectorAll('[data-sub]').forEach(b=>b.onclick=()=>{G.sub=b.dataset.sub;gitView();});
+  $('#ref').onchange=e=>{G.ref=e.target.value;gitView();};
+  const body=$('#gitBody');
+  if(G.sub==='log'){
+    const log=await api('/api/git/log?'+qs({repo:G.repo,ref:G.ref}));
+    body.innerHTML=`<div class="list">${log.map(c=>`<button class="row" data-hash="${c.hash}"><code>${c.hash}</code><span>${esc(c.subject)}</span><span class="meta">${esc(c.author)} · ${c.date}</span></button>`).join('')}</div>`;
+    body.querySelectorAll('[data-hash]').forEach(b=>b.onclick=async()=>{
+      const c=await api('/api/git/commit?'+qs({repo:G.repo,hash:b.dataset.hash}));
+      body.innerHTML=`<div class="main-head"><h2>${esc(c.subject)}</h2><button class="btn" id="back">返回提交记录</button></div><p class="label">${c.hash} · ${esc(c.author)} · ${c.date}</p>
+        <pre class="code diff">${c.patch.split('\n').map(l=>`<span class="${/^\+(?!\+\+)/.test(l)?'add':/^-(?!--)/.test(l)?'del':l.startsWith('@@')?'hunk':l.startsWith('diff --git')?'file':''}">${esc(l)}</span>`).join('\n')}</pre>`;
+      $('#back').onclick=gitView;
+    });
+  }else if(G.sub==='tree'){
+    const files=await api('/api/git/tree?'+qs({repo:G.repo,ref:G.ref}));
+    body.innerHTML=`<div class="list">${files.map(f=>`<button class="row" data-file="${esc(f)}"><span class="meta">文件</span><span>${esc(f)}</span><span></span></button>`).join('')}</div>`;
+    body.querySelectorAll('[data-file]').forEach(b=>b.onclick=async()=>{
+      const r=await api('/api/git/file?'+qs({repo:G.repo,ref:G.ref,path:b.dataset.file}));
+      body.innerHTML=`<div class="main-head"><h2>${esc(b.dataset.file)}</h2><button class="btn" id="back">返回文件列表</button></div><pre class="code">${esc(r.content)}</pre>`;
+      $('#back').onclick=gitView;
+    });
+  }else{
+    const prs=await api('/api/git/prs?'+qs({repo:G.repo}));
+    const label={open:'待合并',merged:'已合并',conflict:'有冲突',closed:'已关闭'};
+    body.innerHTML=prs.length?`<div class="list">${prs.map(p=>`<div class="row"><code>#${p.id}</code><span>${esc(p.title)}<br><span class="meta">${esc(p.branch)} · 作者 ${esc(p.author)} · 审查 ${esc(p.reviewer)}${p.note?` · ${esc(p.note)}`:''}</span></span><span class="pill st-${p.status}">${label[p.status]||p.status}</span></div>`).join('')}</div>`
+      :'<p class="empty">这个仓库还没有合并请求。</p>';
+  }
+}
+
+/* ---------- 文档库 ---------- */
+const D={path:null,version:null,editing:false};
+async function docsView(){
+  const files=await api('/api/docs/tree');
+  if(!D.path||!files.includes(D.path)) D.path=files.find(f=>f.startsWith('项目/'))||files[0];
+  const groups={};
+  for(const f of files){const dir=f.split('/').slice(0,-1).join(' / ')||'根目录';(groups[dir]=groups[dir]||[]).push(f);}
+  const doc=await api('/api/docs/file?'+qs({path:D.path}));
+  let content=doc.content;
+  if(D.version) content=(await api('/api/docs/version?'+qs({path:D.path,hash:D.version}))).content;
+  view.innerHTML=`<div class="sys"><aside class="side px">${Object.entries(groups).map(([g,fs])=>`<h3>${esc(g)}</h3>${fs.map(f=>`<button class="item" data-path="${esc(f)}" aria-current="${f===D.path}"><span>${esc(f.split('/').pop().replace(/\.md$/,''))}</span></button>`).join('')}`).join('')}</aside>
+  <section class="main px"><div class="main-head"><h2>${esc(D.path)}</h2>
+    ${D.editing?'':`<button class="btn" id="edit">编辑</button>`}</div>
+    ${D.version?`<p class="label">正在看历史版本 ${D.version}。<button class="btn" id="latest">回到最新版</button></p>`:''}
+    <div id="docBody">${D.editing?`<textarea class="editor" id="editor">${esc(doc.content)}</textarea>
+      <div class="sql"><input type="text" id="msg" placeholder="这次改了什么（会写进修改历史）" style="flex:1;min-width:200px"><button class="btn primary" id="save">保存</button><button class="btn" id="cancel">取消</button></div>`
+      :`<article class="md">${md(content)}</article>`}</div>
+    <div><p class="label">修改历史（${doc.history.length} 个版本）</p><div class="versions">${doc.history.map(h=>`<button data-ver="${h.hash}" aria-current="${D.version===h.hash}"><code>${h.hash}</code>　${esc(h.subject)}　<span class="label">${esc(h.author)} · ${h.date}</span></button>`).join('')}</div></div>
+  </section></div>`;
+  view.querySelectorAll('[data-path]').forEach(b=>b.onclick=()=>{D.path=b.dataset.path;D.version=null;D.editing=false;docsView();});
+  view.querySelectorAll('[data-ver]').forEach(b=>b.onclick=()=>{D.version=b.dataset.ver===doc.history[0]?.hash?null:b.dataset.ver;docsView();});
+  view.querySelectorAll('[data-doc]').forEach(a=>a.onclick=e=>{e.preventDefault();const dir=D.path.split('/').slice(0,-1).join('/');D.path=(dir?dir+'/':'')+a.dataset.doc;D.version=null;docsView();});
+  const on=(id,fn)=>{const el=$('#'+id);if(el) el.onclick=fn;};
+  on('edit',()=>{D.editing=true;D.version=null;docsView();});
+  on('latest',()=>{D.version=null;docsView();});
+  on('cancel',()=>{D.editing=false;docsView();});
+  on('save',async()=>{
+    try{
+      const r=await api('/api/docs/file',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:D.path,content:$('#editor').value,message:$('#msg').value.trim()||undefined})});
+      D.editing=false;toast(`已保存，版本 ${r.hash}`);docsView();
+    }catch(e){toast('保存失败：'+e.message);}
+  });
+}
+
+/* ---------- 数据库 ---------- */
+const B={db:'company',sql:''};
+async function dbView(){
+  const dbs=await api('/api/db/list');
+  if(!dbs.find(d=>d.name===B.db)) B.db='company';
+  const tables=await api('/api/db/tables?'+qs({db:B.db}));
+  if(!B.sql) B.sql=`SELECT * FROM "${tables[0]?.name||'sqlite_master'}" LIMIT 200`;
+  view.innerHTML=`<div class="sys"><aside class="side px"><h3>数据库</h3>${dbs.map(d=>`<button class="item" data-db="${esc(d.name)}" aria-current="${d.name===B.db}"><span>${esc(d.label)}</span></button>`).join('')}
+    <h3>数据表</h3>${tables.map(t=>`<button class="item" data-table="${esc(t.name)}"><span>${esc(t.name)}</span><small>${t.columns} 列</small></button>`).join('')}</aside>
+  <section class="main px"><div class="main-head"><h2>${esc(dbs.find(d=>d.name===B.db).label)}</h2></div>
+    <div class="sql"><textarea id="sql" aria-label="SQL 查询">${esc(B.sql)}</textarea><button class="btn primary" id="run">查询</button></div>
+    <p class="label">只读：这里只能执行一条 SELECT / WITH / PRAGMA 查询，最多显示 500 行。</p>
+    <div id="result"></div></section></div>`;
+  const run=async()=>{
+    B.sql=$('#sql').value;
+    try{const r=await api('/api/db/query?'+qs({db:B.db,sql:B.sql}));$('#result').innerHTML=`<p class="label">${r.rows.length} 行</p>`+dataTable(r);}
+    catch(e){$('#result').innerHTML=`<p class="err">${esc(e.message)}</p>`;}
+  };
+  view.querySelectorAll('[data-db]').forEach(b=>b.onclick=()=>{B.db=b.dataset.db;B.sql='';dbView();});
+  view.querySelectorAll('[data-table]').forEach(b=>b.onclick=()=>{$('#sql').value=`SELECT * FROM "${b.dataset.table}" LIMIT 200`;run();});
+  $('#run').onclick=run;
+  $('#sql').onkeydown=e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)) run();};
+  run();
+}
+
+/* ---------- 事务记录 ---------- */
+const RECORDS=[['orders','任务工单'],['projects','项目'],['roles','项目分工'],['approvals','审批与决策'],['deliverables','交付验收'],['reviews','打回记录'],
+  ['meetings','会议纪要'],['prs','代码合并请求'],['model_calls','模型调用（真实花费）'],['ledger','花费账本（按员工）'],['ledger_detail','花费明细'],['employees','员工档案'],['activity','动态日志']];
+let R='orders';
+async function recordsView(){
+  view.innerHTML=`<div class="sys"><aside class="side px"><h3>记录</h3>${RECORDS.map(([k,t])=>`<button class="item" data-rec="${k}" aria-current="${k===R}"><span>${t}</span></button>`).join('')}</aside>
+  <section class="main px"><div class="main-head"><h2>${RECORDS.find(r=>r[0]===R)[1]}</h2></div><div id="recBody"><p class="empty">加载中…</p></div></section></div>`;
+  view.querySelectorAll('[data-rec]').forEach(b=>b.onclick=()=>{R=b.dataset.rec;recordsView();});
+  const r=await api('/api/records/'+R);
+  $('#recBody').innerHTML=dataTable(r);
+}
+
+/* ---------- shell ---------- */
+async function kpis(){
+  try{
+    const s=await api('/api/summary');
+    const k=[['员工',s.employees],['项目',s.projects],['代码库',s.repos],['主干提交',s.commits],['待合并',s.open_prs],['文档',s.docs],['审批',s.approvals],['交付',s.deliverables],['模型真实花费','¥'+(+s.api_spent).toFixed(2)]];
+    $('#kpis').innerHTML=k.map(([t,v])=>`<div class="kpi"><span class="label">${t}</span><b class="num">${v}</b></div>`).join('');
+  }catch{ $('#kpis').innerHTML='<span class="err">连不上公司后端，请先运行 node server.js</span>'; }
+}
+const VIEWS={git:gitView,docs:docsView,db:dbView,records:recordsView};
+async function route(){
+  // #docs/<encoded path> opens that document directly
+  const [head,...rest]=location.hash.slice(1).split('/');
+  const tab=VIEWS[head]?head:'git';
+  if(tab==='docs'&&rest.length){D.path=decodeURIComponent(rest.join('/'));D.version=null;D.editing=false;}
+  document.querySelectorAll('.tabs a').forEach(a=>{if(a.dataset.tab===tab) a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
+  view.innerHTML='<div class="main px"><p class="empty">加载中…</p></div>';
+  try{await VIEWS[tab]();}catch(e){fail(e);}
+  kpis();
+}
+addEventListener('hashchange',route);
+route();
+})();
+</script>
+</body>
+</html>
