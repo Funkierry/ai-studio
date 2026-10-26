@@ -9,6 +9,8 @@ async function api(url, body) {
   return data;
 }
 
+import { collaborationRoles, collaborationWorkorder } from './collaboration-plan.js';
+
 export async function mountWorkspace({ office, models, onSnapshot, avatar }) {
   const css = document.createElement('link'); css.rel='stylesheet';css.href='/workspace.css';document.head.append(css);
   const root = document.createElement('main');root.id='workspace';document.body.prepend(root);
@@ -49,8 +51,12 @@ export async function mountWorkspace({ office, models, onSnapshot, avatar }) {
   }
   function jobHTML(j, name) {
     const r=j.result||{}, test=r.artifacts?.find(a=>a.type==='test');
+    const project=data.projects.find(p=>p.id===j.project_id),role=project?.roles.find(r=>r.idx===j.role_idx);
+    const dependencies=(role?.deps||[]).map(idx=>project.roles.find(r=>r.idx===idx)).filter(Boolean);
     return `<article class="ws-role"><h3>${esc(name)} · ${esc(person(j.employee))}</h3>${badge(j.status)}${j.attempt?` <small class="muted">第 ${j.attempt} 次调用</small>`:''}
+      ${dependencies.length?`<p class="muted">依赖交付：${dependencies.map(d=>`${esc(d.name)}（${esc(person(d.who))}）`).join('、')}</p>`:''}
       ${j.waiting?`<p class="muted">${esc(j.waiting)}</p>`:''}${j.started_at?`<p class="muted">开始：${esc(j.started_at)} UTC${j.finished_at?` · 结束：${esc(j.finished_at)} UTC`:''}</p>`:''}
+      ${['running','queued'].includes(j.status)&&r.artifacts?.length?'<p class="muted">以下为上一版交付，本次修改完成后更新。</p>':''}
       ${j.error?`<p class="ws-error">${esc(j.error)}</p>`:''}${r.summary?`<p>${esc(r.summary)}</p>`:''}
       ${test?`<div class="ws-test${test.fail||!test.pass?' bad':''}">实际测试：通过 ${test.pass} · 失败 ${test.fail} · 跳过 ${test.skipped||0}</div>`:''}
       <div class="ws-actions">${links(r)}${j.status==='review'?`<button class="btn primary" data-approve="${esc(j.id)}">${j.project_id?'确认这份分工':'验收通过'}</button>`:''}</div>
@@ -124,17 +130,33 @@ export async function mountWorkspace({ office, models, onSnapshot, avatar }) {
     if(!data.employees.length){notice('请先添加员工');return;}
     const developer=data.employees.find(e=>['frontend','backend','code'].includes(e.profile?.post))||data.employees[0];
     const tester=data.employees.find(e=>e.profile?.post==='test')||data.employees.find(e=>e.id!==developer.id)||developer;
+    const planner=data.employees.find(e=>e.profile?.post==='pm')||data.employees[0];
+    const backend=data.employees.find(e=>e.profile?.post==='backend'&&e.id!==planner.id)||developer;
+    const frontend=data.employees.find(e=>e.profile?.post==='frontend'&&![planner.id,backend.id].includes(e.id))||data.employees.find(e=>['frontend','backend','code'].includes(e.profile?.post)&&![planner.id,backend.id].includes(e.id))||data.employees.find(e=>![planner.id,backend.id].includes(e.id))||developer;
+    const integrator=data.employees.find(e=>e.profile?.post==='test'&&![planner.id,backend.id,frontend.id].includes(e.id))||data.employees.find(e=>['frontend','backend','code'].includes(e.profile?.post)&&![planner.id,backend.id,frontend.id].includes(e.id))||data.employees.find(e=>![planner.id,backend.id,frontend.id].includes(e.id))||tester;
     const orderId=crypto.randomUUID();
     const d=dialog(`<h2>新工作</h2>
       <label><span>标题</span><input name="title" required maxlength="80" placeholder="例如：做一个极简计数器"></label>
       <label><span>要做什么、怎样算完成</span><textarea name="goal" required placeholder="目标、功能、限制和验收标准"></textarea></label>
       <label><span>交付方式</span><select name="kind">
-        <option value="code">代码：开发 → 测试 → 验收</option>
+        <option value="team" selected>多人协作：需求 → 前后端并行 → 集成测试</option>
+        <option value="code">小型代码：开发 → 测试 → 验收</option>
         <option value="doc">文档：撰写 → 验收</option>
       </select></label>
-      <label><span>负责人</span><select name="owner">${optEmployees(developer.id)}</select></label>
-      <label data-tester><span>代码测试负责人</span><select name="tester">${optEmployees(tester.id)}</select></label>`,async f=>{
-      if(f.get('kind')==='code') {
+      <div data-team>
+        <p class="muted">需求确认后，前后端分别开工；两份代码都交付后，由集成测试负责人接手。发现问题可指定分工返工，下游自动重做。</p>
+        <label><span>需求规划负责人</span><select name="planner">${optEmployees(planner.id)}</select></label>
+        <label><span>后端开发负责人</span><select name="backend">${optEmployees(backend.id)}</select></label>
+        <label><span>前端开发负责人</span><select name="frontend">${optEmployees(frontend.id)}</select></label>
+        <label><span>集成测试负责人</span><select name="integrator">${optEmployees(integrator.id)}</select></label>
+      </div>
+      <label data-owner hidden><span>负责人</span><select name="owner">${optEmployees(developer.id)}</select></label>
+      <label data-tester hidden><span>代码测试负责人</span><select name="tester">${optEmployees(tester.id)}</select></label>`,async f=>{
+      if(f.get('kind')==='team') {
+        const roles=collaborationRoles({planner:f.get('planner'),backend:f.get('backend'),frontend:f.get('frontend'),tester:f.get('integrator')});
+        const p=await api('/api/projects',{name:f.get('title'),goal:f.get('goal'),roles,workorder:collaborationWorkorder(f.get('title'),f.get('goal'),roles,data.employees)});
+        selected=`p:${p.id}`;
+      }else if(f.get('kind')==='code') {
         const p=await api('/api/projects',{name:f.get('title'),goal:f.get('goal'),roles:[
           {name:'代码开发',who:f.get('owner'),deps:[],gate:false,out:'可运行代码与 README',desc:'按目标实现可运行代码，README 写清运行方法；把核心逻辑与 UI 分离，供后续 node:test 验证。'},
           {name:'测试验收',who:f.get('tester'),deps:[0],gate:false,out:'tests/ 下的自动化测试与测试报告',desc:'阅读上游实现，用 node:test 测试真实代码和关键流程，不要复制实现充当测试；不适用的后端要求无需添加。'}]});selected=`p:${p.id}`;
@@ -144,7 +166,11 @@ export async function mountWorkspace({ office, models, onSnapshot, avatar }) {
       }
       setView('tasks');
     });
-    d.querySelector('[name=kind]').onchange=e=>{d.querySelector('[data-tester]').hidden=e.target.value==='doc';};
+    d.querySelector('[name=kind]').onchange=e=>{
+      d.querySelector('[data-team]').hidden=e.target.value!=='team';
+      d.querySelector('[data-owner]').hidden=e.target.value==='team';
+      d.querySelector('[data-tester]').hidden=e.target.value!=='code';
+    };
   };
   $('#ws-hire').onclick=()=>dialog(`<h2>添加员工</h2><label><span>名字</span><input name="name" required maxlength="40"></label><label><span>模型</span><select name="type">${Object.entries(models?.types||{}).map(([type,id])=>{const p=models.providers[id];return `<option value="${esc(type)}"${!models.fake&&!p?.configured?' disabled':''}>${esc(type)} · ${esc(p?.name||'未接入')}${!models.fake&&!p?.configured?'（未配置）':''}</option>`;}).join('')}</select></label><label><span>岗位</span><select name="post"><option value="frontend">前端开发</option><option value="backend">后端开发</option><option value="test">测试</option><option value="writing">文案写作</option><option value="general">通用</option></select></label><label><span>专长</span><input name="persona"></label>`,f=>api('/api/workspace/employees',Object.fromEntries(f)));
   $('#ws-filter').onchange=e=>{filter=e.target.value;selected=null;lastDetail='';render();};

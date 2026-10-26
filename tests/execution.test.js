@@ -26,6 +26,41 @@ function fixture(t, write) {
 const launch = (co, roles) => co.launchProject({name:'任务执行回归',goal:'实现并验证实际代码',roles});
 const doc = (name, who='dev', deps=[], gate=false) => ({name,who,deps,gate,out:'文档'});
 
+test('collaboration template gates planning, runs developers together and gives integration both branches',async t=>{
+  const {collaborationRoles}=await import('../public/collaboration-plan.js');
+  const pending=[];
+  const {co,ex,calls}=fixture(t,args=>new Promise(resolve=>pending.push({args,resolve})));
+  co.syncEmployees(['pm','api','ui','tester'].map(id=>({id,name:id,model:'fixture',profile:{type:'deepseek'}})));
+  const p=launch(co,collaborationRoles({planner:'pm',backend:'api',frontend:'ui',tester:'tester'}));
+  assert.deepEqual(p.roles.map(r=>r.kind),['prd','backend','frontend','test']);
+  ex.createJobs(p.id);
+  await waitFor(()=>calls.length===1);
+  const plan=output();plan.data.document='共同约定：TASK-CONTRACT-V1';pending[0].resolve(plan);
+  await waitFor(()=>ex.active.size===0);
+  assert.equal(calls.length,1);
+  assert.equal(ex.snapshot().jobs.find(j=>j.id===`p:${p.id}:0`).status,'review');
+  ex.approve(`p:${p.id}:0`);
+  await waitFor(()=>calls.length===3);
+  assert.equal(ex.active.size,2);
+  assert.deepEqual(new Set(calls.slice(1).map(c=>c.employee.id)),new Set(['api','ui']));
+  for(const c of calls.slice(1))assert.match(c.prompt,/TASK-CONTRACT-V1/);
+  pending.find(c=>c.args.kind==='backend').resolve(output({'server/contract.cjs':"exports.route='/api/tasks';"}));
+  await waitFor(()=>ex.active.size===1);
+  assert.equal(calls.length,3);
+  pending.find(c=>c.args.kind==='frontend').resolve(output({'web/request.cjs':"exports.route='/api/tasks';"}));
+  await waitFor(()=>calls.length===4);
+  assert.equal(calls[3].employee.id,'tester');
+  assert.match(calls[3].prompt,/server\/contract\.cjs/);assert.match(calls[3].prompt,/web\/request\.cjs/);
+  pending[3].resolve(output({'tests/integration.test.js':"const test=require('node:test'),assert=require('node:assert/strict');test('both delivered modules agree',()=>assert.equal(require('../server/contract.cjs').route,require('../web/request.cjs').route));"}));
+  await waitFor(()=>ex.active.size===0);
+  const done=ex.snapshot();
+  assert.equal(done.projects[0].status,'review');
+  assert.equal(done.jobs.find(j=>j.role_idx===3).result.artifacts.find(a=>a.type==='test').pass,1);
+  co.projectReview(p.id,{stars:3});
+  assert.equal(ex.snapshot().projects[0].status,'done');
+  assert.equal(co.git.file(p.slug,'main','web/request.cjs').content,"exports.route='/api/tasks';");
+});
+
 test('reading state never resets assigned orders or running roles',t=>{
   const {co,ex}=fixture(t);
   const p=launch(co,[doc('说明文档')]);co.roleStarted(p.id,0);
