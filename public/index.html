@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
 <style>
-/* Layout: status bar on top; left = pixel office + order board, right = approval queue + inspector. One committed night-shift palette. */
+/* Layout: status bar on top; left = pixel office + work board, right = what waits for you + staff. One committed night-shift palette. */
 :root{
   --bg:#1b1824;
   --panel:#25212f;
@@ -44,6 +44,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
 .btn:active:not(:disabled){transform:translateY(1px);box-shadow:inset 0 -1px 0 rgba(0,0,0,.28)}
 .btn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--bg)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+#autoBtn[aria-pressed="true"]{background:var(--panel-2);border-color:var(--ok);color:var(--ok)}
 a.btn{display:inline-block;color:var(--text);text-decoration:none}
 .brand .sub{max-width:52ch}
 .num{font-family:var(--font-pixel);font-variant-numeric:tabular-nums}
@@ -65,9 +66,7 @@ a.btn{display:inline-block;color:var(--text);text-decoration:none}
 .bar{flex:1;height:10px;background:var(--bg);border:2px solid var(--line);position:relative;min-width:90px}
 .bar i{position:absolute;inset:0 auto 0 0;background:var(--accent);width:100%}
 .funds b{font-size:16px}
-.speed{display:flex;flex-direction:column;gap:3px}
-.speed .group{display:flex;gap:4px}
-.speed .hint{font-size:11px;color:var(--muted)}
+.speed{display:flex;gap:4px}
 .actions{display:flex;gap:6px;flex-wrap:wrap}
 
 /* main layout */
@@ -100,17 +99,7 @@ a.btn{display:inline-block;color:var(--text);text-decoration:none}
 .proto-flag{position:absolute;right:8px;bottom:8px;font-size:11px;color:var(--muted);background:rgba(27,24,36,.8);padding:1px 6px;pointer-events:none}
 @media (max-width:600px){.proto-flag{display:none}}
 
-/* focus view */
-.focus{padding:12px;display:flex;flex-direction:column;gap:10px}
-.focus .head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
-.focus h2{font-family:var(--font-pixel);font-size:18px}
-.table-scroll{overflow-x:auto}
-table{border-collapse:collapse;width:100%;min-width:620px;font-size:13px}
-th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
-th{font-weight:600;color:var(--muted);font-size:12px;letter-spacing:.06em}
-td.num{white-space:nowrap}
-
-/* order board */
+/* work board: what is being done right now, then the orders nobody has taken yet */
 .board{padding:12px;display:flex;flex-direction:column;gap:10px}
 .board-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .board-head h2,.queue h2,.tabs{font-family:var(--font-pixel);font-size:18px}
@@ -124,9 +113,46 @@ td.num{white-space:nowrap}
 .order .meta{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted);margin-top:auto}
 .order .meta .grab{color:var(--accent)}
 .order.dragging{opacity:.4}
-.new-order{display:flex;gap:8px;flex-wrap:wrap}
-.new-order input{flex:1;min-width:180px;background:var(--bg);border:2px solid var(--line);color:var(--text);padding:6px 10px;font:inherit}
 .empty{color:var(--muted);font-size:13px}
+.sub-h{font-size:13px;color:var(--muted);letter-spacing:.06em}
+.active{display:flex;flex-direction:column;gap:6px}
+.work{background:var(--panel-2);border:2px solid var(--line);padding:7px 10px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;
+  text-align:left;width:100%}
+.work:hover{border-color:var(--muted)}
+.work b{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.work .who{font-size:12px;color:var(--muted);grid-column:1}
+.work .st{grid-row:1/3;grid-column:2;align-self:center;font-size:12px}
+.work.wait-you{border-color:var(--accent)}
+.work .roles{grid-column:1/3;display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.work .roles span{font-size:11px;padding:0 5px;border:1px solid var(--line)}
+.post{font-size:11px;padding:0 5px;border:1px solid var(--violet);color:var(--violet);white-space:nowrap}
+.order .meta .queued{color:var(--muted)}
+/* segmented choice: one of a few options, all visible */
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg label{flex:1 1 150px;display:flex;flex-direction:column;gap:2px;border:2px solid var(--line);padding:6px 9px;cursor:pointer;background:var(--bg);color:var(--text);font-size:13px}
+.seg label small{color:var(--muted);font-size:12px}
+.seg label:has(input:checked){border-color:var(--accent)}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.modes{display:flex;gap:4px}
+.who-hint{font-size:12px;color:var(--info)}
+.order-form details summary{cursor:pointer;font-size:13px;color:var(--info)}
+.order-form details[open]{display:flex;flex-direction:column;gap:10px}
+/* staff roster: everyone at a glance, the selected person opens below */
+.roster{display:flex;flex-direction:column;gap:4px}
+.mate{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 8px;align-items:center;padding:4px 6px;border:2px solid transparent;text-align:left;width:100%}
+.mate:hover{border-color:var(--line)}
+.mate[aria-pressed="true"]{border-color:var(--accent);background:var(--panel-2)}
+.mate .nm{font-weight:600;min-width:0}
+.mate .nm small{font-weight:400;color:var(--muted);margin-left:6px;font-size:12px}
+.mate .stt{font-size:12px;color:var(--muted);white-space:nowrap}
+.mate .stt.busy{color:var(--info)}
+.mate .stt.you{color:var(--accent)}
+.detail{display:flex;flex-direction:column;gap:10px;border-top:2px solid var(--line);padding-top:10px}
+.post-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
+.post-row select{background:var(--bg);border:2px solid var(--line);color:var(--text);padding:3px 6px;font:inherit;font-size:13px}
+.more summary{cursor:pointer;font-size:13px;color:var(--info)}
+.more[open]{display:flex;flex-direction:column;gap:8px}
 
 .ghost{position:fixed;left:0;top:0;z-index:50;pointer-events:none;background:var(--accent);color:var(--bg);padding:5px 10px;font-weight:600;font-size:13px;
   border:2px solid var(--bg);box-shadow:3px 3px 0 rgba(0,0,0,.4);transform:translate(-50%,-130%);white-space:nowrap}
@@ -155,9 +181,6 @@ td.num{white-space:nowrap}
 .tabs{display:flex;gap:4px;border-bottom:2px solid var(--line)}
 .tabs button{padding:4px 10px;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-2px}
 .tabs button[aria-selected="true"]{color:var(--text);border-bottom-color:var(--accent)}
-.chips{display:flex;gap:6px;flex-wrap:wrap}
-.chip{display:flex;align-items:center;gap:6px;border:2px solid var(--line);padding:2px 8px;font-size:13px;background:var(--panel-2)}
-.chip[aria-pressed="true"]{border-color:var(--accent)}
 .sw{width:10px;height:10px;flex:none;border:1px solid rgba(0,0,0,.4)}
 .emp-head{display:flex;gap:10px;align-items:center}
 .emp-head .sw{width:26px;height:26px}
@@ -227,7 +250,7 @@ td.num{white-space:nowrap}
 .cand h4{margin:0;font-size:15px;display:flex;align-items:center;gap:6px}
 .cand p{font-size:12px;color:var(--muted)}
 .cand .btn{margin-top:auto}
-.cand input,.cand textarea{background:var(--bg);border:2px solid var(--line);color:var(--text);padding:4px 8px;font:inherit;font-size:13px;width:100%}
+.cand input,.cand textarea,.cand select{background:var(--bg);border:2px solid var(--line);color:var(--text);padding:4px 8px;font:inherit;font-size:13px;width:100%}
 .order .tags{display:flex;flex-wrap:wrap;gap:4px}
 .order .tags .pill{color:var(--muted)}
 .order .tags .pill.urgent,.order.urgent h3{color:var(--bad)}
@@ -267,14 +290,6 @@ td.num{white-space:nowrap}
 .menu .btn.primary{justify-content:center;margin-top:4px}
 .stars{color:var(--accent);font-weight:400;margin-left:4px}
 .pill.new{color:var(--accent);margin-right:4px;vertical-align:2px}
-.goals{padding:12px;display:flex;flex-direction:column;gap:8px}
-.goals h2{font-family:var(--font-pixel);font-size:18px;display:flex;justify-content:space-between;align-items:baseline}
-.goals h2 .num{font-size:14px;color:var(--muted)}
-.goals ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;font-size:13px}
-.goals li{display:flex;gap:8px;align-items:center}
-.goals li i{width:12px;height:12px;border:2px solid var(--line);flex:none}
-.goals li.done{color:var(--muted);text-decoration:line-through}
-.goals li.done i{background:var(--ok);border-color:var(--ok)}
 /* work planner */
 .modal-card.wide{width:min(1000px,100%)}
 .field{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
@@ -321,21 +336,17 @@ a.opt{color:var(--info);text-decoration:none}
     <span class="label">资金（Token 预算）</span>
     <div class="row"><div class="bar"><i id="fundsBar"></i></div><b class="num" id="funds">¥50.00</b></div>
   </div>
-  <div class="speed">
-    <span class="label">时间 · 空格暂停，1 / 2 切速度</span>
-    <div class="group" role="group" aria-label="时间控制">
-      <button class="btn" data-speed="0" aria-pressed="false">暂停</button>
-      <button class="btn" data-speed="1" aria-pressed="true">1x</button>
-      <button class="btn" data-speed="3" aria-pressed="false">快进</button>
-    </div>
-    <span class="hint" id="speedHint">1x：每个确认都由你来点</span>
+  <div class="group speed" role="group" aria-label="时间：空格暂停，1 / 2 切速度">
+    <button class="btn" data-speed="0" aria-pressed="false">暂停</button>
+    <button class="btn" data-speed="1" aria-pressed="true">1x</button>
+    <button class="btn" data-speed="3" aria-pressed="false">快进</button>
   </div>
   <div class="actions">
-    <button class="btn primary" id="planBtn">安排工作</button>
-    <a class="btn" id="sysLink" href="/company.html" target="_blank" rel="noopener" hidden>公司系统</a>
+    <button class="btn primary" id="newWorkBtn">＋ 新工作</button>
+    <button class="btn" id="autoBtn" aria-pressed="true" title="开着时，新订单按岗位自动交给空闲的员工">自动派单：开</button>
     <button class="btn" id="hireBtn">招聘</button>
-    <button class="btn" id="focusBtn" aria-pressed="false">专注视图</button>
-    <button class="btn" id="endDayBtn">下班结算</button>
+    <button class="btn" id="reportBtn">日报</button>
+    <a class="btn" id="sysLink" href="/company.html" target="_blank" rel="noopener" hidden>公司系统 ↗</a>
   </div>
 </header>
 
@@ -347,33 +358,30 @@ a.opt{color:var(--info);text-decoration:none}
         <div class="overlay" id="overlay"></div>
         <span class="proto-flag">模拟数据</span>
       </div>
-      <div class="focus" id="focusView" hidden></div>
     </div>
 
-    <section class="board px" aria-labelledby="ordersTitle">
+    <section class="board px" aria-labelledby="workTitle">
       <div class="board-head">
-        <h2 id="ordersTitle">订单</h2>
-        <p>拖到<b>员工</b>身上：TA 单独负责。拖到<b>工位区空地</b>：两人分工、互相审查。拖进<b>会议室</b>：两人先讨论再定稿。点一下订单可以分配或编辑要求。</p>
-        <button class="btn primary" id="newOrderBtn">新订单</button>
+        <h2 id="workTitle">工作</h2>
+        <p id="boardHint"></p>
       </div>
+      <div id="active" class="active"></div>
+      <h3 class="sub-h">待分配<span id="openCount"></span></h3>
       <div class="orders" id="orders"></div>
     </section>
   </section>
 
   <aside class="right">
-    <section class="goals px" id="goals" aria-label="上手任务"></section>
     <section class="queue px" aria-labelledby="queueTitle">
-      <h2 id="queueTitle">等你确认<span id="qCount"></span></h2>
+      <h2 id="queueTitle">等你处理<span id="qCount"></span></h2>
       <div id="queue" class="opts"></div>
     </section>
     <section class="inspector px">
       <div class="tabs" role="tablist">
-        <button role="tab" id="tabStaffBtn" aria-selected="true">员工</button>
-        <button role="tab" id="tabProjBtn" aria-selected="false">项目<span id="projCount"></span></button>
-        <button role="tab" id="tabWallBtn" aria-selected="false">作品墙<span id="wallCount"></span></button>
+        <button role="tab" id="tabStaffBtn" aria-selected="true">员工<span id="staffCount"></span></button>
+        <button role="tab" id="tabWallBtn" aria-selected="false">已交付<span id="wallCount"></span></button>
       </div>
       <div id="tabStaff"></div>
-      <div id="tabProj" class="wall" hidden></div>
       <div id="tabWall" class="wall" hidden></div>
     </section>
   </aside>
@@ -422,7 +430,7 @@ const API={on:false,buf:{activity:[],ledger:[]},empDirty:false,
 setInterval(()=>API.flush(),1500);
 function empSnapshot(e){
   return {id:e.id,name:e.name,model:e.model,level:e.level,xp:e.xp,speed:e.speed,memory:e.memory,stamina:Math.round(e.stamina),spent:+e.spent.toFixed(4),
-    prefs:e.prefs,bond:e.bond,profile:{type:e.type,variant:e.variant,persona:e.persona||'',shirt:e.shirt,hair:e.hair,skin:e.skin,traits:e.traits,price:e.price,needs:e.needs||null,pitch:e.pitch}};
+    prefs:e.prefs,bond:e.bond,profile:{type:e.type,variant:e.variant,persona:e.persona||'',post:e.post,postLabel:POSTS[e.post].label,shirt:e.shirt,hair:e.hair,skin:e.skin,traits:e.traits,price:e.price,needs:e.needs||null,pitch:e.pitch}};
 }
 // someone writing a deliverable or standing at the door can't take new work
 const busy=e=>!!(e.job||e.writing||e.waiting);
@@ -443,7 +451,19 @@ function modelStatus(type){
 function chargeReal(e,cny){state.funds-=cny;e.spent+=cny;state.stats.spent+=cny;API.empDirty=true;}
 const orderRecord=(t,source)=>({id:t.id,title:t.title,brief:t.brief,est:t.est,task_key:TASKS.includes(t)?t.id:null,source,spec:t.spec||null});
 // what the boss asked for in an order; preset orders only have their one-line brief
-const specOf=t=>({detail:'',deliverable:{kind:'doc',name:''},criteria:[],refs:'',priority:'normal',planFirst:false,...(t.spec||{detail:t.brief})});
+// post: which post handles it ('' = guess from the text); check: how closely the boss looks (auto / review / strict); manual: wait for the boss to assign
+// (orders saved before there were check levels only had planFirst, which is what strict means)
+function specOf(t){
+  const s={detail:'',deliverable:{kind:'doc',name:''},criteria:[],refs:'',priority:'normal',planFirst:false,post:'',check:'review',manual:false,...(t.spec||{detail:t.brief})};
+  if(!t.spec?.check&&s.planFirst) s.check='strict';
+  s.planFirst=s.check==='strict';
+  return s;
+}
+const CHECKS={
+  auto:{label:'放手',desc:'做完自动验收，只记录。模型没写成时还是会给你看'},
+  review:{label:'验收',desc:'过程中的决定员工自己拿主意，你只看最终交付'},
+  strict:{label:'严查',desc:'先给你看计划，同事交叉审查，过程中的决定都问你'},
+};
 function logArtifacts(e,arts){
   const fmt=a=>({llm:`用 ${a.model} 写完：${a.output_tokens?`输入 ${a.input_tokens} / 输出 ${a.output_tokens}`:`共 ${a.input_tokens}`} token${a.cny!=null?`，约 ¥${a.cny.toFixed(2)}`:a.plan_usd!=null?`，走你的订阅额度（折合 API 价约 $${a.plan_usd.toFixed(2)}）`:'，走你的账号额度'}，用时 ${Math.round(a.ms/1000)} 秒`,
     fallback:`模型没写成，改用模板：${a.reason}`,db_error:`业务数据库没建成：${a.reason}`,doc:`文档存入文档库：${a.path}`,commit:`提交 ${a.hash} 到代码库 ${a.repo} 的 ${a.branch} 分支${a.files?`（${a.files} 个文件）`:''}`,
@@ -525,6 +545,68 @@ function applyCustomTypes(){
 function nextName(type){
   const used=new Set(state.emps.map(e=>e.name)),t=TYPES[type];
   return t.names.find(n=>!used.has(n))||`${t.names[0]} ${state.emps.filter(e=>e.type===type).length+1}号`;
+}
+
+/* ---------- posts: everyone holds one, and new work goes to whoever holds the matching post ---------- */
+// kw: words in an order that point to this post
+const POSTS={
+  pm:{label:'产品经理',does:'需求、PRD、方案',kw:/需求|PRD|prd|方案|规划|功能/},
+  design:{label:'设计',does:'界面、线框图、视觉',kw:/设计|界面|线框|UI|视觉|原型|海报/},
+  writer:{label:'文案写作',does:'文章、文案、公告、指南',kw:/文案|文章|公告|指南|手册|稿|介绍|邮件/},
+  research:{label:'调研分析',does:'竞品、调研、复盘、数据',kw:/调研|竞品|对比|分析|反馈|复盘|报告|数据|价格|大纲/},
+  backend:{label:'后端开发',does:'接口、数据库、脚本、修 bug',kw:/后端|接口|数据库|API|脚本|修复|bug|报错|代码/},
+  frontend:{label:'前端开发',does:'页面、交互、小程序',kw:/前端|页面|网页|小程序|H5|交互/},
+  qa:{label:'测试',does:'测试、验收、审查',kw:/测试|回归|审查|检查/},
+  general:{label:'通用',does:'什么都接，岗位上没人时补位'},
+};
+// a new hire's starting post, by kind; the boss can change it any time
+const DEFAULT_POST={claude:'pm',gpt:'writer',deepseek:'backend',gemini:'research',codex:'frontend'};
+const postLabel=k=>POSTS[k]?.label||'通用';
+const postOptions=sel=>Object.entries(POSTS).map(([k,p])=>`<option value="${k}"${k===sel?' selected':''}>${p.label} · ${p.does}</option>`).join('');
+// the post an order belongs to: the boss's choice, else guessed from its words (first match in this order wins)
+function postOf(t){
+  const s=specOf(t);
+  if(POSTS[s.post]) return s.post;
+  const text=`${t.title} ${s.detail||t.brief||''} ${s.deliverable.name||''}`;
+  if(s.deliverable.kind==='code') return POSTS.frontend.kw.test(text)?'frontend':'backend';
+  return ['qa','writer','backend','research','pm','design','frontend'].find(k=>POSTS[k].kw.test(text))||'general';
+}
+// who takes an order now: a free person in its post, else a free generalist; if nobody holds the post at all, anyone free
+// (own: only people in the post or generalists, so orders with a proper owner go out before others borrow that owner)
+function pickFor(t,own){
+  const post=postOf(t),free=state.emps.filter(e=>!busy(e));
+  const best=l=>l.sort((a,b)=>b.stamina-a.stamina)[0]||null;
+  return best(free.filter(e=>e.post===post))||best(free.filter(e=>e.post==='general'))
+    ||(own||state.emps.some(e=>e.post===post)?null:best(free));
+}
+// a strict order also gets a second pair of eyes: a free tester if there is one, otherwise any free colleague
+function reviewerFor(lead){
+  const free=state.emps.filter(e=>!busy(e)&&e!==lead);
+  return free.find(e=>e.post==='qa')||free.find(e=>e.post===lead.post)||free[0]||null;
+}
+// why an order is still on the board
+function waitNote(t){
+  if(specOf(t).manual) return '等你分配';
+  if(!state.auto) return '自动派单关着';
+  const post=postOf(t);
+  return state.emps.some(e=>e.post===post)?`等${postLabel(post)}空闲`:'等有人空闲';
+}
+// auto-dispatch: open orders go out urgent first, as soon as the right person is free
+function dispatch(){
+  if(!state.auto) return;
+  const list=[...state.orders].filter(t=>!specOf(t).manual).sort((a,b)=>(specOf(b).priority==='urgent')-(specOf(a).priority==='urgent'));
+  // first round: only owners of each post; second round: orders whose post nobody holds borrow whoever is still free
+  for(const own of [true,false]) for(const t of list){
+    if(!state.orders.includes(t)) continue;
+    const e=pickFor(t,own);
+    if(!e) continue;
+    // a strict order waits until a colleague is also free to review it (unless the lead works alone in the company)
+    const strict=specOf(t).check==='strict',r=strict?reviewerFor(e):null;
+    if(strict&&!r&&state.emps.length>1) continue;
+    startJob(t,r?'team':'solo',r?[e,r]:[e]);
+    addLog(e,{kind:'sys',text:`按岗位（${postLabel(e.post)}）自动派单：${t.title}`});
+    toast(r?`自动派单：「${t.title}」→ ${e.name} 主写、${r.name} 审查`:`自动派单：「${t.title}」→ ${e.name}（${postLabel(e.post)}）`);
+  }
 }
 
 /* ---------- scripted orders (simulated) ---------- */
@@ -709,8 +791,10 @@ const LEVELS=[0,3,7,12,18];
 const levelOf=xp=>LEVELS.filter(v=>xp>=v).length;
 
 /* ---------- state ---------- */
+// auto: send new orders out by post without waiting for the boss; reports: the days already closed, newest first
 const state={speed:1,minutes:9*60,day:1,funds:20,budget:20,emps:[],orders:[],jobs:[],queue:[],wall:[],completed:0,
-  unlocked:{server:false,archive:false},selected:null,tab:'staff',focus:false,dropHover:null,ended:false,stats:null,dirty:true,packets:[],goals:{},arrivals:[],poolI:0,ring:0,projects:[]};
+  unlocked:{server:false,archive:false},selected:null,tab:'staff',dropHover:null,stats:null,dirty:true,packets:[],arrivals:[],poolI:0,ring:0,projects:[],
+  auto:true,dispatchT:0,reports:[]};
 const newStats=()=>({done:0,spent:0,asks:0,auto:0,collab:0,stars:0,reviews:0,reworks:0,decisions:[]});
 const planArrivals=()=>{state.arrivals=[10*60+40,12*60+50,14*60+50,16*60+30];};
 state.stats=newStats();
@@ -728,6 +812,7 @@ function hire(type,walkIn=true,opts={}){
   const outfit=def.outfits[variant%def.outfits.length];
   const e={id:opts.id||`${type}-${Date.now().toString(36)}${Math.random().toString(36).slice(2,5)}`,type,name:opts.name||nextName(type),
     model:def.model,traits:def.traits,speed:def.speed,memory:def.memory,price:def.price,needs:def.needs,pitch:def.pitch,persona:opts.persona||'',
+    post:POSTS[opts.post]?opts.post:DEFAULT_POST[type]||'general',
     variant,look:def.look,outfit,shirt:def.look.hair,hair:def.look.hair,skin:def.look.skin,desk,x:0,y:0,spot:null,path:[],job:null,log:[],spent:0,stamina:100,bubble:null,bubbleKind:'say',bubbleT:0,
     wanderT:3+Math.random()*6,anim:Math.random()*5,waiting:false,tiredWarned:false,helping:false,bond:{},xp:0,level:1,prefs:[],carry:false};
   desk.owner=e;
@@ -738,7 +823,7 @@ function hire(type,walkIn=true,opts={}){
     goTo(e,freeLounge()||LOUNGE[0]);
     addLog(e,{kind:'sys',text:'入职，第一天上班'});
     say(e,`我是${e.name}。${def.pitch}`);
-    goal('hire');
+    
   }
   buildTags();dirty();
   return e;
@@ -826,7 +911,7 @@ function resolvePlan(q,ok,feedback){
   j.transcript.push(`老板：${decision}`);
   API.post('/api/approvals',{kind:'approve',task:j.task.title,title:`${lead.name}的工作计划`,detail:q.res.summary||'',risk:'high',decision,auto:false,
     people:j.members.map(m=>m.name),day:state.day,time:clock()});
-  goal('approve');
+  
   goTo(lead,j.mode==='meet'?MEET[0]:lead.desk.seat);
   if(ok){
     j.task.spec={...specOf(j.task),approvedPlan:q.res.plan};
@@ -911,6 +996,8 @@ function updateHelp(j,s){
 function openAsk(j,st){
   const item={id:uid(),type:'ask',job:j,step:st,risk:st.risk,age:0};
   state.queue.push(item);state.stats.asks++;
+  // unless the order is strict, decisions along the way are the employee's call; the boss only sees the result
+  if(!j.task.project&&specOf(j.task).check!=='strict'){resolve(item,0,true);return;}
   j.phase='ask';
   j.members.forEach(m=>{m.waiting=true;addLog(m,{kind:'ask',text:'请你确认：'+st.title});});
   say(j.members[0],st.opts[0].by?'我们意见不一样，请老板定':'老板，有件事要你定一下');
@@ -931,16 +1018,16 @@ function resolve(item,i,auto){
   const j=item.job,st=item.step,opt=st.opts[i];
   state.queue=state.queue.filter(q=>q!==item);
   const label=opt.by?`${nameOf(j,opt.by)}的方案：${opt.label}`:opt.label;
-  j.members.forEach(m=>{m.waiting=false;addLog(m,{kind:'boss',text:(auto?'快进模式自动批准（低风险）：':'')+label});});
+  j.members.forEach(m=>{m.waiting=false;addLog(m,{kind:auto?'sys':'boss',text:(auto?'自己拿主意：':'')+label});});
   if(opt.then){const sp=j.members[0];j.members.forEach(m=>addLog(m,{who:j.mode==='solo'?'':sp.name,kind:'say',text:opt.then}));say(sp,opt.then);}
   else if(opt.by){say(opt.by==='A'?j.members[1]:j.members[0],'好，听老板的。');}
   const short=st.title.replace(/^分歧：/,'');
-  j.decisions.push(`${short} → ${opt.label}`);
+  j.decisions.push(`${short} → ${opt.label}${auto?`（${j.members[0].name}自己定的）`:''}`);
   j.transcript.push(`老板：${label}`);
   API.post('/api/approvals',{kind:opt.by?'choice':'approve',task:j.task.title,project_id:j.task.project?.sid||null,title:st.title,detail:st.detail,risk:st.risk,
     decision:label,proposed_by:opt.by?nameOf(j,opt.by):null,auto,people:j.members.map(m=>m.name),day:state.day,time:clock()});
   state.stats.decisions.push({task:j.task.title,q:short,a:opt.label,auto,split:!!opt.by});
-  if(auto){state.stats.auto++;toast(`快进：已自动批准「${short}」`,'ok');}else goal('approve');
+  if(auto) state.stats.auto++;
   if(opt.rework) j.steps=[...j.steps.slice(0,j.i+1),{k:'tool',t:'按老板的意见修改',tok:1500},...j.steps.slice(j.i+1)];
   j.i++;j.phase='gather';j.t=0;
   if(j.mode!=='meet') goTo(j.members[0],j.members[0].desk.seat);
@@ -982,11 +1069,16 @@ function toReview(j){
     m.job=null;addLog(m,{kind:'sys',text:`做完了，${lead.name} 拿去给老板验收`});
     goTo(m,freeLounge()||LOUNGE[idx]);m.wanderT=6+Math.random()*6;
   });
+  const item={id:uid(),type:'review',job:j,risk:'high',age:0};
+  state.queue.push(item);
+  // 放手: accepted on the spot, unless the model failed and a template went out instead; that one the boss should see
+  const failed=j.result?.artifacts?.some(a=>a.type==='fallback');
+  if(!j.project&&specOf(j.task).check==='auto'&&!failed){acceptReview(item,0,true);return;}
   lead.carry=true;lead.waiting=true;say(lead,'老板，做好了，请验收');
-  state.queue.push({id:uid(),type:'review',job:j,risk:'high',age:0});
   placeQueue();renderQueue();dirty();
 }
-function acceptReview(item,stars){
+// stars 0 with auto: accepted without the boss looking (放手); it doesn't count toward the average rating
+function acceptReview(item,stars,auto){
   if(!state.queue.includes(item)) return;
   state.queue=state.queue.filter(q=>q!==item);
   const j=item.job,lead=j.members[0];
@@ -998,10 +1090,10 @@ function acceptReview(item,stars){
   const d={id:uid(),title:j.task.out.title,body:j.result?.summary||j.task.out.body,by:people.map(m=>m.name).join(' + '),mode:j.origMode,
     decisions:j.decisions,time:clock(),day:state.day,stars,reworks:j.reworks,cost:j.cost};
   state.wall.unshift(d);state.completed++;
-  const s=state.stats;s.done++;s.stars+=stars;s.reviews++;
+  const s=state.stats;s.done++;if(!auto){s.stars+=stars;s.reviews++;}
   if(j.origMode==='meet'&&j.members[1]) bond(j.members[0],j.members[1],2);
-  say(lead,stars===3?'太好了！':stars===2?'收到，下次争取三星':'明白，我再琢磨琢磨');
-  people.forEach(m=>{addLog(m,{kind:'boss',text:`验收通过 ${'★'.repeat(stars)}：${d.title}`});gainXp(m,stars);});
+  say(lead,auto?'交付完成，已归档':stars===3?'太好了！':stars===2?'收到，下次争取三星':'明白，我再琢磨琢磨');
+  people.forEach(m=>{addLog(m,{kind:auto?'sys':'boss',text:auto?`自动验收（放手）：${d.title}`:`验收通过 ${'★'.repeat(stars)}：${d.title}`});gainXp(m,Math.max(1,stars));});
   if(j.project){
     if(j.project.sid) API.post(`/api/projects/${j.project.sid}/review`,{stars,decisions:j.decisions}).then(r=>{if(r){logArtifacts(lead,r.artifacts);toast('项目已合并发布，总结存入文档库','ok');}});
   }else{
@@ -1010,8 +1102,8 @@ function acceptReview(item,stars){
       .then(r=>{if(r&&!j.result) addLog(lead,{kind:'tool',text:`交付物存入文档库：${r.doc}`});});
   }
   if(!lead.job){goTo(lead,freeLounge()||LOUNGE[0]);lead.wanderT=6+Math.random()*6;}
-  toast(`${d.title} 验收 ${'★'.repeat(stars)}，挂上作品墙`,'ok');
-  goal('review');renderWall();checkUnlocks();placeQueue();renderQueue();dirty();
+  toast(auto?`${d.title} 已交付（放手，自动验收）`:`${d.title} 验收 ${'★'.repeat(stars)}，已归档`,'ok');
+  renderWall();checkUnlocks();placeQueue();renderQueue();dirty();
 }
 // key: one of REASONS (remembered as a preference), or 'custom' with the boss's own words
 function rejectReview(item,key,text){
@@ -1082,7 +1174,9 @@ function interject(e,text){
 }
 function newOrderArrives(){
   state.arrivals.shift();
-  const t=customTask(POOL[state.poolI++%POOL.length],'刚收到的新需求，按通用流程处理。');t.fresh=true;
+  let title=POOL[state.poolI++%POOL.length];
+  for(let k=0;k<POOL.length&&state.orders.some(o=>o.title===title);k++) title=POOL[state.poolI++%POOL.length];
+  const t=customTask(title,'刚收到的新订单，按通用流程处理。');t.fresh=true;
   state.orders.push(t);renderOrders();state.ring=4;
   API.post('/api/orders',orderRecord(t,'incoming'));
   toast(`新订单：${t.title}`,'warn');
@@ -1109,10 +1203,10 @@ function assign(task,target,anchor){
   const e=state.emps.find(x=>x.id===target);
   if(!e) return;
   if(busy(e)){toast(`${e.name} 正在忙${e.job?`「${e.job.task.title}」`:''}`,'warn');return;}
-  startJob(task,'solo',[e]);select(e);goal('solo');
+  startJob(task,'solo',[e]);select(e);
 }
 function startPair(task,mode,[a,b]){
-  startJob(task,mode,[a,b]);goal('pair');
+  startJob(task,mode,[a,b]);
   toast(mode==='meet'?`${a.name} 和 ${b.name} 去会议室讨论「${task.title}」`:`${a.name} 主写、${b.name} 审查，分工做「${task.title}」`);
 }
 // more than two people free: let the boss pick the pair, preselecting the two who work together best
@@ -1145,7 +1239,9 @@ function update(dt){
     state.ring=Math.max(0,state.ring-s);
     if(state.arrivals.length&&state.minutes>=state.arrivals[0]) newOrderArrives();
     for(const p of state.projects) if(p.roles.some(r=>r.status==='wait')) tickProject(p);
-    if(state.minutes>=18*60&&!state.ended){state.ended=true;openReport(true);}
+    if(state.minutes>=18*60) endDay();
+    state.dispatchT+=dt;
+    if(state.dispatchT>=1){state.dispatchT=0;dispatch();}
   }
   for(const e of state.emps) updateEmp(e,s);
   for(const p of [...state.packets]){p.t+=s;if(p.t>=p.dur){state.packets=state.packets.filter(x=>x!==p);if(p.done) p.done();}}
@@ -1478,7 +1574,7 @@ function syncOverlay(){
 /* ---------- pointer on canvas ---------- */
 function toLocal(cx,cy){
   const r=cv.getBoundingClientRect();
-  if(state.focus||cx<r.left||cx>r.right||cy<r.top||cy>r.bottom) return null;
+  if(cx<r.left||cx>r.right||cy<r.top||cy>r.bottom) return null;
   return {x:(cx-r.left)/r.width*W,y:(cy-r.top)/r.height*H};
 }
 function empAt(p){
@@ -1533,7 +1629,7 @@ function bindDrag(card,task){
     const t=ev.type==='pointerup'&&dragging?hitTarget(ev.clientX,ev.clientY):null;
     state.dropHover=null;
     if(ev.type!=='pointerup') return;
-    if(dragging){if(t) assign(task,t,{x:ev.clientX,y:ev.clientY});else toast(state.focus?'专注视图里请点订单来分配。':'拖到某个员工身上，或者拖进会议室。');}
+    if(dragging){if(t) assign(task,t,{x:ev.clientX,y:ev.clientY});else toast('拖到某个员工身上，或者拖进会议室。');}
     else openMenu(task,card);
   };
   card.addEventListener('pointerup',end);card.addEventListener('pointercancel',end);
@@ -1557,9 +1653,12 @@ function openMenu(task,card){
   const r=card.getBoundingClientRect();
   const idle=state.emps.filter(e=>!busy(e)).length;
   menu.innerHTML=`<span class="lbl">把「${esc(task.title)}」交给</span>`;
+  const auto=pickFor(task),ab=document.createElement('button');
+  ab.innerHTML=`按岗位自动：${auto?esc(auto.name):'现在没人空闲'}<small>${postLabel(postOf(task))}</small>`;ab.disabled=!auto;ab.onclick=()=>assign(task,auto.id);
+  menu.appendChild(ab);
   for(const e of state.emps){
     const b=document.createElement('button');
-    b.innerHTML=`<span class="sw" style="background:${e.shirt}"></span>${esc(e.name)}<small>${statusText(e)}</small>`;
+    b.innerHTML=`<span class="sw" style="background:${e.shirt}"></span>${esc(e.name)}<small>${postLabel(e.post)} · ${statusText(e)}</small>`;
     b.disabled=busy(e);b.onclick=()=>assign(task,e.id);menu.appendChild(b);
   }
   const at={x:r.left,y:r.bottom};
@@ -1591,60 +1690,110 @@ function intentOf(task,t){
 }
 function closeMenu(){menu.hidden=true}
 document.addEventListener('pointerdown',ev=>{if(!menu.hidden&&!menu.contains(ev.target)&&!ev.target.closest('.order')) closeMenu();});
-document.addEventListener('keydown',ev=>{if(ev.key==='Escape'){closeMenu();if(!$('#modal').hidden&&!state.ended) closeModal();}});
+document.addEventListener('keydown',ev=>{if(ev.key==='Escape'){closeMenu();if(!$('#modal').hidden) softClose();}});
 
 /* ---------- panels ---------- */
 function renderOrders(){
   const el=$('#orders');el.innerHTML='';
-  if(!state.orders.length){el.innerHTML='<p class="empty">没有待分配的订单。点「新订单」写清楚要做什么。</p>';return;}
+  $('#openCount').textContent=state.orders.length?`（${state.orders.length}）`:'';
+  if(!state.orders.length){el.innerHTML='<p class="empty">没有待分配的订单。点顶部「＋ 新工作」。</p>';return;}
   // urgent work first
   const list=[...state.orders].sort((a,b)=>(specOf(b).priority==='urgent')-(specOf(a).priority==='urgent'));
   for(const t of list){
     const s=specOf(t);
-    const tags=[s.priority==='urgent'?'<span class="pill urgent">紧急</span>':'',
+    const tags=[s.priority==='urgent'?'<span class="pill urgent">紧急</span>':'',`<span class="post">${postLabel(postOf(t))}</span>`,
       `<span class="pill">${s.deliverable.kind==='code'?'代码':'文档'}${s.deliverable.name?`：${esc(s.deliverable.name)}`:''}</span>`,
-      s.criteria.length?`<span class="pill">${s.criteria.length} 条验收标准</span>`:'',s.refs?'<span class="pill">有参考资料</span>':'',
-      s.planFirst?'<span class="pill">先看计划</span>':''].join('');
+      `<span class="pill">${CHECKS[s.check].label}</span>`,s.criteria.length?`<span class="pill">${s.criteria.length} 条验收标准</span>`:''].join('');
     const c=document.createElement('div');c.className='order'+(s.priority==='urgent'?' urgent':'');c.tabIndex=0;
     c.innerHTML=`<h3>${t.fresh?'<span class="pill new">新</span>':''}${esc(t.title)}</h3><p>${esc(t.brief)}</p><div class="tags">${tags}</div>
-      <div class="meta"><span class="num">${t.est}</span><span class="grab">拖动分配 · 点击编辑</span></div>`;
+      <div class="meta"><span class="queued">${esc(waitNote(t))}</span><span class="grab">拖给员工 · 点开</span></div>`;
     bindDrag(c,t);el.appendChild(c);
   }
 }
+function renderBoardHint(){
+  $('#boardHint').textContent=state.auto?'自动派单开着：订单按岗位交给空闲的人。也可以把待分配的订单拖给某个员工。'
+    :'自动派单关着：把订单拖给员工，或点开订单选人。';
+}
+// everything being worked on: single orders and multi-person projects, with who has it and what it is waiting for
+function renderActive(){
+  const el=$('#active');
+  const jobs=state.jobs.filter(j=>!j.task.project),projs=state.projects.filter(p=>!p.done);
+  if(!jobs.length&&!projs.length){el.innerHTML='<p class="empty">现在没人在干活。</p>';return;}
+  const PH={planning:'写计划',ask:'等你拍板',help:'找同事帮忙',writing:'写交付物',review:'等你验收'};
+  const atDoor=new Set(state.queue.map(q=>q.job||q.p));
+  const ST={wait:'待开始',run:'进行中',writing:'写交付物',gate:'等你看',done:'完成'};
+  el.innerHTML=jobs.map(j=>{
+    const you=atDoor.has(j),ph=PH[j.phase]||(j.mode==='meet'?'开会中':j.mode==='team'?'协作中':'进行中');
+    return `<button class="work${you?' wait-you':''}" data-emp="${j.members[0].id}"><b>${esc(j.task.title)}</b>
+      <span class="who">${esc(j.members.map(m=>m.name).join(' + '))} · ${MODE_LABEL[j.origMode]} · ${CHECKS[specOf(j.task).check].label}${j.phase==='run'||j.phase==='gather'?` · 第 ${Math.min(j.i+1,j.steps.length)}/${j.steps.length} 步`:''}</span>
+      <span class="st ${you?'':'st-run'}">${ph}</span></button>`;}).join('')
+  +projs.map(p=>{
+    const lead=p.roles.find(r=>r.status!=='done'&&r.status!=='wait')||p.roles.find(r=>r.status!=='done')||p.roles[0];
+    const you=p.roles.some(r=>r.status==='gate')||state.queue.some(q=>q.job?.project===p);
+    return `<button class="work${you?' wait-you':''}" data-emp="${esc(lead.who)}"><b>${esc(p.name)}</b>
+      <span class="who">多人项目 · ${p.roles.filter(r=>r.status==='done').length}/${p.roles.length} 份分工完成 · 已花 ${yuan(p.cost)}</span>
+      <span class="st ${you?'':'st-run'}">${you?'等你看':'进行中'}</span>
+      <span class="roles">${p.roles.map(r=>`<span class="st-${r.status}" title="${esc(ST[r.status])}">${esc(r.name)} · ${esc(empName(r.who))}</span>`).join('')}</span></button>`;}).join('');
+  el.querySelectorAll('[data-emp]').forEach(b=>b.onclick=()=>{const e=empOf(b.dataset.emp);if(e) select(e);});
+}
 /* ---------- order form: what exactly the boss wants ---------- */
+// one window for all new work: a single order (sent to the right post) or a project split between several people
 function openOrderForm(task){
   const editing=!!task,s=specOf(task||{brief:''});
-  const who=state.emps.map(e=>`<option value="${e.id}">${esc(e.name)} 单独做（${esc(e.model)}）</option>`).join('');
+  const who=state.emps.map(e=>`<option value="${e.id}">${esc(e.name)}（${postLabel(e.post)}）单独做</option>`).join('');
   card.classList.add('wide');
-  openModal(`<h2>${editing?'编辑订单':'新订单'}</h2>
-  <p class="label">写得越细，员工交出来的东西越接近你要的。除了标题，其他都可以不填。</p>
+  openModal(`<h2>${editing?'编辑订单':'新工作'}</h2>
+  ${editing?'':`<div class="modes" role="group" aria-label="工作类型"><button type="button" class="btn" aria-pressed="true">一份订单</button><button type="button" class="btn" id="ofProject" aria-pressed="false">多人项目（拆成几份分工接力）</button></div>`}
   <form id="orderForm" class="order-form">
     <label class="field">标题<input id="ofTitle" maxlength="40" value="${esc(task?.title||'')}" placeholder="比如：给官网首页写三版文案"></label>
-    <label class="field">要做什么<textarea id="ofDetail" rows="4" placeholder="背景、目标、给谁看、做到什么程度……">${esc(s.detail||'')}</textarea></label>
+    <label class="field">要做什么<textarea id="ofDetail" rows="3" placeholder="背景、目标、给谁看、做到什么程度……">${esc(s.detail||'')}</textarea></label>
     <div class="field-row">
-      <label class="field">交付物类型<select id="ofKind"><option value="doc">文档</option><option value="code"${s.deliverable.kind==='code'?' selected':''}>代码</option></select></label>
-      <label class="field grow">交付物名称<input id="ofName" maxlength="30" value="${esc(s.deliverable.name||'')}" placeholder="比如：首页文案三版 / 番茄钟脚本"></label>
-      <label class="field">优先级<select id="ofPri"><option value="normal">普通</option><option value="urgent"${s.priority==='urgent'?' selected':''}>紧急</option></select></label>
+      <label class="field">交付物<select id="ofKind"><option value="doc">文档</option><option value="code"${s.deliverable.kind==='code'?' selected':''}>代码</option></select></label>
+      <label class="field grow">名称（可不填）<input id="ofName" maxlength="30" value="${esc(s.deliverable.name||'')}" placeholder="比如：首页文案三版 / 番茄钟脚本"></label>
+      <label class="field">岗位<select id="ofPost"><option value="">按内容自动判断</option>${Object.entries(POSTS).map(([k,p])=>`<option value="${k}"${k===s.post?' selected':''}>${p.label}</option>`).join('')}</select></label>
     </div>
-    <label class="field">验收标准（每行一条，员工交付时会逐条自查）<textarea id="ofCriteria" rows="3" placeholder="每版不超过 80 字&#10;至少一版偏幽默">${esc(s.criteria.join('\n'))}</textarea></label>
-    <label class="field">参考资料（文字、链接、数据，会原样交给员工）<textarea id="ofRefs" rows="3">${esc(s.refs||'')}</textarea></label>
-    <label class="chk"><input type="checkbox" id="ofPlan"${s.planFirst?' checked':''}> 开工前先给我看工作计划</label>
-    ${editing?'':`<label class="field">谁来做<select id="ofWho"><option value="">先放到任务板，稍后再分配</option>${who}
-      <option value="work">两人分工、互相审查</option><option value="meeting">两人先开会讨论</option><option value="plan">拆给多人接力（打开安排工作）</option></select></label>`}
+    <div class="field"><span>你要怎么把关</span><div class="seg">${Object.entries(CHECKS).map(([k,c])=>`<label><input type="radio" name="ofCheck" value="${k}"${k===s.check?' checked':''}>${c.label}<small>${c.desc}</small></label>`).join('')}</div></div>
+    ${editing?'':`<label class="field">谁来做<select id="ofWho"><option value="auto">自动：交给这个岗位上空闲的人</option><option value="">先放着，我自己分配</option>${who}
+      <option value="work">两人分工、互相审查</option><option value="meeting">两人先开会讨论</option></select></label>`}
+    <p class="who-hint" id="ofHint"></p>
+    <label class="chk"><input type="checkbox" id="ofUrgent"${s.priority==='urgent'?' checked':''}> 紧急（排在最前面）</label>
+    <details${s.criteria.length||s.refs?' open':''}><summary>更多要求：验收标准、参考资料</summary>
+      <label class="field">验收标准（每行一条，员工交付时会逐条自查）<textarea id="ofCriteria" rows="3" placeholder="每版不超过 80 字&#10;至少一版偏幽默">${esc(s.criteria.join('\n'))}</textarea></label>
+      <label class="field">参考资料（文字、链接、数据，会原样交给员工）<textarea id="ofRefs" rows="3">${esc(s.refs||'')}</textarea></label>
+    </details>
     <p class="plan-err" id="ofErr" hidden></p>
-    <div class="row-btns"><button class="btn primary" type="submit">${editing?'保存':'创建订单'}</button><button class="btn" type="button" id="ofCancel">取消</button></div>
+    <div class="row-btns"><button class="btn primary" type="submit">${editing?'保存':'创建'}</button><button class="btn" type="button" id="ofCancel">取消</button></div>
   </form>`);
   $('#ofTitle').focus();
   $('#ofCancel').onclick=closeModal;
+  const read=()=>({detail:$('#ofDetail').value.trim(),deliverable:{kind:$('#ofKind').value,name:$('#ofName').value.trim()},
+    criteria:$('#ofCriteria').value.split('\n').map(x=>x.trim()).filter(Boolean),refs:$('#ofRefs').value.trim(),
+    priority:$('#ofUrgent').checked?'urgent':'normal',post:$('#ofPost').value,check:card.querySelector('[name=ofCheck]:checked').value});
+  // say who will get it before the boss presses 创建
+  const hint=()=>{
+    const probe={title:$('#ofTitle').value,brief:'',spec:read()},post=postOf(probe),w=$('#ofWho')?.value??'auto';
+    if(w!=='auto'){$('#ofHint').textContent=`岗位：${postLabel(post)}`;return;}
+    const e=state.auto?pickFor(probe):null;
+    const holders=state.emps.some(x=>x.post===post);
+    $('#ofHint').textContent=`岗位：${postLabel(post)}。`+(e?`会交给 ${e.name}`:!state.auto?'自动派单关着，会先放在任务板上'
+      :holders?`${postLabel(post)}岗位上的人都在忙，空出来就自动接手`:`还没人在${postLabel(post)}岗位上，谁先空出来谁接手`)
+      +(probe.spec.check==='strict'?'，另找一位同事审查':'')+'。';
+  };
+  card.querySelectorAll('#orderForm input,#orderForm select,#orderForm textarea').forEach(x=>x.addEventListener(x.tagName==='SELECT'||x.type==='radio'?'change':'input',hint));
+  hint();
+  const pj=$('#ofProject');
+  if(pj) pj.onclick=()=>{
+    const title=$('#ofTitle').value.trim(),sp=read();
+    closeModal();openPlanner({name:title,goal:[sp.detail,...sp.criteria.map(c=>`- ${c}`)].filter(Boolean).join('\n')});
+  };
   $('#orderForm').onsubmit=ev=>{
     ev.preventDefault();
     const title=$('#ofTitle').value.trim();
     if(!title){$('#ofErr').textContent='先写个标题。';$('#ofErr').hidden=false;return;}
-    const spec={detail:$('#ofDetail').value.trim(),deliverable:{kind:$('#ofKind').value,name:$('#ofName').value.trim()},
-      criteria:$('#ofCriteria').value.split('\n').map(x=>x.trim()).filter(Boolean),refs:$('#ofRefs').value.trim(),
-      priority:$('#ofPri').value,planFirst:$('#ofPlan').checked};
+    const spec=read();
     const brief=spec.detail?(spec.detail.length>60?spec.detail.slice(0,60)+'…':spec.detail):'（没写详细要求）';
     if(editing){
+      spec.manual=specOf(task).manual;
       // a renamed custom order gets office scripts that mention the new title
       if(!TASKS.includes(task)&&task.title!==title){const fresh=customTask(title,brief);for(const k of ['solo','team','meet']) task[k]=fresh[k];}
       Object.assign(task,{title,brief,spec});
@@ -1653,13 +1802,15 @@ function openOrderForm(task){
       closeModal();renderOrders();toast('订单已更新');
       return;
     }
+    const target=$('#ofWho').value;
+    spec.manual=target==='';
     const t=customTask(title,brief);t.spec=spec;t.out.title=`《${spec.deliverable.name||title}》`;
     state.orders.push(t);
-    const target=$('#ofWho').value,r=$('#newOrderBtn').getBoundingClientRect();
+    const r=$('#newWorkBtn').getBoundingClientRect();
     closeModal();renderOrders();
     API.post('/api/orders',orderRecord(t,'custom')).then(()=>{
-      if(!target) toast(`新订单「${title}」已放上任务板`);
-      else if(target==='plan') openPlanner({name:title,goal:[spec.detail,...spec.criteria.map(c=>`- ${c}`)].filter(Boolean).join('\n'),order:t});
+      if(target==='auto'){if(state.auto) dispatch();if(state.orders.includes(t)) toast(`「${title}」已放上任务板：${waitNote(t)}`);}
+      else if(!target) toast(`「${title}」已放上任务板，等你分配`);
       else assign(t,target,{x:r.left,y:r.bottom});
     });
   };
@@ -1690,7 +1841,7 @@ function planCard(q){
 function renderQueue(){
   const el=$('#queue');
   $('#qCount').textContent=state.queue.length?`（${state.queue.length}）`:'';
-  if(!state.queue.length){el.innerHTML='<p class="empty">暂时没有要你拍板的事。员工需要确认、或者做完要验收时，会到你办公室门口排队。</p>';return;}
+  if(!state.queue.length){el.innerHTML='<p class="empty">暂时没有要你处理的事。交付验收、严查订单里的决定、你要求先看的分工会到这里，员工也会到你办公室门口排队。</p>';return;}
   el.innerHTML='';
   for(const q of state.queue){
     if(q.type==='gate'){el.appendChild(gateCard(q));continue;}
@@ -1756,36 +1907,45 @@ function renderStaff(){
   // keep a half-typed message across re-renders
   const prevIn=box.querySelector('#sayInput'),keep=prevIn&&box.dataset.emp===state.selected?.id?{v:prevIn.value,f:document.activeElement===prevIn}:null;
   const prevP=box.querySelector('#personaInput'),keepP=prevP&&box.dataset.emp===state.selected?.id?{v:prevP.value,f:document.activeElement===prevP}:null;
+  const openMore=box.querySelector('.more')?.open&&box.dataset.emp===state.selected?.id;
   box.dataset.emp=state.selected?.id||'';
   const atBottom=!oldLog||oldLog.scrollHeight-oldLog.scrollTop-oldLog.clientHeight<30;
   const e=state.selected;
-  let h='<div class="chips">'+state.emps.map(x=>`<button class="chip" data-id="${x.id}" aria-pressed="${x===e}"><span class="sw" style="background:${x.shirt}"></span>${esc(x.name)}</button>`).join('')+'</div>';
-  if(!e){h+='<p class="empty">点办公室里的员工，或上面的名字，查看 TA 的完整记录。</p>';box.innerHTML=h;bindChips(box);return;}
+  $('#staffCount').textContent=state.emps.length?`（${state.emps.length}）`:'';
+  let h='<div class="roster">'+state.emps.map(x=>{const cls=x.waiting?'you':busy(x)?'busy':'';
+    return `<button class="mate" data-id="${x.id}" aria-pressed="${x===e}"><span class="pslot"></span><span class="nm">${esc(x.name)}<small>${postLabel(x.post)}</small></span><span class="stt ${cls}">${statusText(x)}</span></button>`;}).join('')+'</div>';
+  if(!e){h+='<p class="empty">点上面的名字，或办公室里的员工，查看 TA 在做什么。</p>';box.innerHTML=h;bindChips(box);fillRoster(box);return;}
   const st=Math.round(e.stamina);
-  h+=`<div class="emp-head"><span class="pslot"></span><div><h3>${esc(e.name)}</h3><p>${esc(TYPES[e.type]?.nick||e.model)} · Lv.${e.level} · ${statusText(e)}</p></div></div>
+  h+=`<div class="detail"><div class="emp-head"><span class="pslot big"></span><div><h3>${esc(e.name)}</h3><p>${esc(TYPES[e.type]?.nick||e.model)} · Lv.${e.level} · 精力 ${st}% · ${statusText(e)}</p></div></div>
+  <div class="post-row"><span>岗位</span><select id="postSel" aria-label="岗位">${postOptions(e.post)}</select></div>
+  <p class="now">${e.job?`正在做：<b>${esc(e.job.task.title)}</b>${e.job.mode==='meet'?'（会议）':''} · 第 ${Math.min(e.job.i+1,e.job.steps.length)}/${e.job.steps.length} 步`:e.writing?`正在写：<b>${esc(e.writing.out||'交付物')}</b>`:'手上没有活'}</p>
+  ${e.job&&e.job.phase!=='review'?`<form class="say-form" id="sayForm"><input id="sayInput" type="text" maxlength="40" placeholder="插句话，比如：重点看价格" aria-label="对员工说的话"><button class="btn" type="submit">插话</button></form>`:''}
+  <div class="row-btns">${e.job&&e.job.phase!=='review'&&!e.job.task.project?'<button class="btn" id="stopBtn">叫停这单</button>':''}<button class="btn" id="restBtn"${st>=95?' disabled':''}>下班休息（压缩记忆）</button></div>
+  <ul class="log">${e.log.map(l=>`<li class="${l.kind}"><span class="t num">${l.t}</span><span class="x">${KIND[l.kind]?`<span class="k">${KIND[l.kind]}</span>`:''}${l.who?`<span class="w">${esc(l.who)}：</span>`:''}${esc(l.text)}${l.cost?`<span class="c num">${yuan(l.cost)}</span>`:''}</span></li>`).join('')}</ul>
+  <details class="more"${openMore?' open':''}><summary>专长、偏好和能力</summary>
+  <div class="persona"><span class="label">专长（会写进 TA 的每份工作说明）</span>${state.editPersona===e.id
+    ?`<textarea id="personaInput" rows="3" maxlength="300" aria-label="专长">${esc(e.persona||'')}</textarea><div class="row-btns"><button class="btn primary" id="personaSave">保存</button><button class="btn" id="personaCancel">取消</button></div>`
+    :`<p>${esc(e.persona||'还没写。比如：资深前端，擅长手机页面。')}</p><button class="link" id="personaEdit">修改</button>`}</div>
+  <div class="prefs"><span class="label">记住的偏好（来自你的打回意见）</span>${e.prefs.length?`<ul>${e.prefs.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`:'<p class="empty">还没有。</p>'}</div>
   <div class="traits">${e.traits.map(t=>`<span>${esc(t)}</span>`).join('')}</div>
-  <div class="persona"><span class="label">岗位与专长（会写进 TA 的每份工作说明）</span>${state.editPersona===e.id
-    ?`<textarea id="personaInput" rows="3" maxlength="300" aria-label="岗位与专长">${esc(e.persona||'')}</textarea><div class="row-btns"><button class="btn primary" id="personaSave">保存</button><button class="btn" id="personaCancel">取消</button></div>`
-    :`<p>${esc(e.persona||'还没写。写清楚 TA 是做什么的，交付会更对路。')}</p><button class="link" id="personaEdit">修改</button>`}</div>
   <dl class="stats">
     <dt>速度</dt><dd class="pips">${pips(e.speed)}</dd>
     <dt>记忆力</dt><dd class="pips">${pips(e.memory)}</dd>
     <dt>工资</dt><dd class="num">${yuan(e.price*1.5)} / 千 token</dd>
-    <dt>精力</dt><dd class="stam${st<25?' low':''}"><div class="bar"><i style="width:${st}%"></i></div><span class="num">${st}%</span></dd>
     <dt>经验</dt><dd class="stam"><div class="bar xp"><i style="width:${e.level>=5?100:Math.round((e.xp-LEVELS[e.level-1])/(LEVELS[e.level]-LEVELS[e.level-1])*100)}%"></i></div><span class="num">${e.level>=5?'满级':`${e.xp}/${LEVELS[e.level]}`}</span></dd>
-    <dt>累计花费</dt><dd class="num">${yuan(e.spent)}</dd>
+    <dt>今天花费</dt><dd class="num">${yuan(e.spent)}</dd>
   </dl>
   ${state.emps.length>1?`<div class="bonds"><span class="label">默契度（一起干活越多，交接越顺）</span>${state.emps.filter(o=>o!==e).map(o=>{const n=e.bond[o.id]||0;
     return `<div><span class="sw" style="background:${o.shirt}"></span>${esc(o.name)}<span class="pips">${pips(Math.min(5,Math.ceil(n/2)))}</span><small>合作 ${n} 次</small></div>`}).join('')}</div>`:''}
-  <div class="prefs"><span class="label">记住的偏好（来自你的打回意见）</span>${e.prefs.length?`<ul>${e.prefs.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`:'<p class="empty">还没有。打回交付时选的原因，会变成 TA 的长期记忆。</p>'}</div>
-  <p class="now">${e.job?`正在做：<b>${esc(e.job.task.title)}</b>${e.job.mode==='meet'?'（会议）':''} · 第 ${Math.min(e.job.i+1,e.job.steps.length)}/${e.job.steps.length} 步`:'手上没有订单'}</p>
-  ${e.job&&e.job.phase!=='review'?`<form class="say-form" id="sayForm"><input id="sayInput" type="text" maxlength="40" placeholder="插句话，比如：重点看价格" aria-label="对员工说的话"><button class="btn" type="submit">插话</button></form>`:''}
-  <div class="row-btns"><button class="btn" id="restBtn"${st>=95?' disabled':''}>下班休息（压缩记忆）</button>${e.job&&e.job.phase!=='review'&&!e.job.task.project?'<button class="btn" id="stopBtn">叫停这单</button>':''}</div>
-  <ul class="log">${e.log.map(l=>`<li class="${l.kind}"><span class="t num">${l.t}</span><span class="x">${KIND[l.kind]?`<span class="k">${KIND[l.kind]}</span>`:''}${l.who?`<span class="w">${esc(l.who)}：</span>`:''}${esc(l.text)}${l.cost?`<span class="c num">${yuan(l.cost)}</span>`:''}</span></li>`).join('')}</ul>`;
-  box.innerHTML=h;bindChips(box);
-  box.querySelector('.pslot').appendChild(portraitEl(e.look,e.outfit,64));
+  </details></div>`;
+  box.innerHTML=h;bindChips(box);fillRoster(box);
+  box.querySelector('.pslot.big').appendChild(portraitEl(e.look,e.outfit,64));
   const log=box.querySelector('.log');
   if(atBottom) log.scrollTop=log.scrollHeight;else if(oldLog) log.scrollTop=oldLog.scrollTop;
+  $('#postSel').onchange=ev=>{
+    e.post=ev.target.value;API.empDirty=true;
+    addLog(e,{kind:'sys',text:`岗位改为：${postLabel(e.post)}`});toast(`${e.name} 的岗位改成了${postLabel(e.post)}`);renderOrders();
+  };
   $('#restBtn').onclick=()=>{
     e.stamina=100;e.tiredWarned=false;API.empDirty=true;
     addLog(e,{kind:'sys',text:'前面的对话已压缩成 6 条要点，精力恢复到 100%'});
@@ -1804,38 +1964,29 @@ function renderStaff(){
   const pc=$('#personaCancel');if(pc) pc.onclick=()=>{state.editPersona=null;renderStaff();};
   const ps=$('#personaSave');if(ps) ps.onclick=()=>{
     e.persona=$('#personaInput').value.trim();state.editPersona=null;API.empDirty=true;
-    addLog(e,{kind:'sys',text:`岗位与专长更新为：${e.persona||'（空）'}`});renderStaff();
+    addLog(e,{kind:'sys',text:`专长更新为：${e.persona||'（空）'}`});renderStaff();
   };
 }
-function bindChips(box){box.querySelectorAll('.chip').forEach(c=>c.onclick=()=>select(state.emps.find(x=>x.id===c.dataset.id)));}
+function fillRoster(box){box.querySelectorAll('.roster .pslot').forEach((sl,i)=>{const x=state.emps[i];sl.appendChild(portraitEl(x.look,x.outfit,32));});}
+function bindChips(box){box.querySelectorAll('.mate').forEach(c=>c.onclick=()=>select(state.emps.find(x=>x.id===c.dataset.id)));}
 function renderWall(){
   $('#wallCount').textContent=state.wall.length?`（${state.wall.length}）`:'';
   const el=$('#tabWall');
-  if(!state.wall.length){el.innerHTML='<p class="empty">还没有交付。员工完成订单后，成果会挂在这里，茶水间的墙上也会多一张纸。</p>';return;}
-  el.innerHTML=state.wall.map(d=>`<details><summary>${esc(d.title)}<b class="stars">${'★'.repeat(d.stars)}${'☆'.repeat(3-d.stars)}</b><span>第 ${d.day} 天 ${d.time} · ${esc(d.by)} · ${MODE_LABEL[d.mode]} · ${yuan(d.cost)}${d.reworks?` · 返工 ${d.reworks} 次`:''}</span></summary>
-    <p>${esc(d.body)}</p>${d.decisions.length?`<ul>${d.decisions.map(x=>`<li>你的决定：${esc(x)}</li>`).join('')}</ul>`:''}</details>`).join('');
-}
-function renderFocus(){
-  const el=$('#focusView');
-  el.innerHTML=`<div class="head"><h2>专注视图</h2><span class="label">和办公室是同一份数据，只是去掉了动画</span></div>
-  <div class="table-scroll"><table><thead><tr><th>员工</th><th>状态</th><th>当前订单</th><th>最新动态</th><th>精力</th><th>花费</th></tr></thead><tbody>
-  ${state.emps.map(e=>{const last=e.log[e.log.length-1];return `<tr><td><span class="sw" style="background:${e.shirt};display:inline-block;margin-right:6px"></span>${esc(e.name)}</td>
-    <td>${statusText(e)}</td><td>${e.job?esc(e.job.task.title):'—'}</td><td>${last?esc(last.text):'—'}</td>
-    <td class="num">${Math.round(e.stamina)}%</td><td class="num">${yuan(e.spent)}</td></tr>`}).join('')}
-  </tbody></table></div>`;
+  if(!state.wall.length){el.innerHTML='<p class="empty">还没有交付。验收过的成果会列在这里，原文在公司系统的文档库里。</p>';return;}
+  el.innerHTML=state.wall.map(d=>`<details><summary>${esc(d.title)}<b class="stars">${d.stars?'★'.repeat(d.stars)+'☆'.repeat(3-d.stars):'自动验收'}</b><span>第 ${d.day} 天 ${d.time} · ${esc(d.by)} · ${MODE_LABEL[d.mode]} · ${yuan(d.cost)}${d.reworks?` · 返工 ${d.reworks} 次`:''}</span></summary>
+    <p>${esc(d.body)}</p>${d.decisions.length?`<ul>${d.decisions.map(x=>`<li>决定：${esc(x)}</li>`).join('')}</ul>`:''}</details>`).join('');
 }
 function select(e){
   state.selected=e;setTab('staff');dirty();
 }
 function setTab(t){
   state.tab=t;
-  for(const k of ['staff','proj','wall']){
+  for(const k of ['staff','wall']){
     const cap=k[0].toUpperCase()+k.slice(1);
     $(`#tab${cap}Btn`).setAttribute('aria-selected',t===k);$(`#tab${cap}`).hidden=t!==k;
   }
 }
 $('#tabStaffBtn').onclick=()=>setTab('staff');
-$('#tabProjBtn').onclick=()=>{setTab('proj');renderProjects();};
 $('#tabWallBtn').onclick=()=>{setTab('wall');renderWall();};
 
 function renderHeader(){
@@ -1845,18 +1996,6 @@ function renderHeader(){
   $('#fundsBar').style.width=Math.max(0,state.funds/state.budget*100)+'%';
 }
 
-/* ---------- onboarding goals ---------- */
-const GOALS=[['approve','批准一次员工的请求'],['solo','把订单拖给某个员工'],['pair','让两个人分工或开会'],['plan','用「安排工作」给多人分工'],['review','验收一份交付'],['hire','招聘一名新员工']];
-function goal(k){
-  if(state.goals[k]) return;
-  state.goals[k]=true;renderGoals();
-  if(GOALS.every(([g])=>state.goals[g])) toast('上手任务全部完成，之后就看你怎么经营了。','ok');
-}
-function renderGoals(){
-  const n=GOALS.filter(([g])=>state.goals[g]).length,el=$('#goals');
-  el.innerHTML=`<h2>上手任务<span class="num">${n}/${GOALS.length}</span></h2>`+(n===GOALS.length?'<p class="empty">全部完成。</p>'
-    :`<ul>${GOALS.map(([g,t])=>`<li class="${state.goals[g]?'done':''}"><i></i>${t}</li>`).join('')}</ul>`);
-}
 document.addEventListener('keydown',ev=>{
   if(ev.target.closest('input,textarea,select')||!$('#modal').hidden) return;
   if(ev.key===' '&&!ev.target.closest('button,.order')){ev.preventDefault();setSpeed(state.speed?0:1);}
@@ -1865,27 +2004,34 @@ document.addEventListener('keydown',ev=>{
 });
 
 /* ---------- controls ---------- */
-const HINTS={0:'暂停：所有员工原地冻结',1:'1x：每个确认都由你来点',3:'快进：低风险的确认自动批准'};
 function setSpeed(v){
   state.speed=v;
   document.querySelectorAll('[data-speed]').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.speed===v));
-  $('#speedHint').textContent=HINTS[v];
 }
 document.querySelectorAll('[data-speed]').forEach(b=>b.onclick=()=>setSpeed(+b.dataset.speed));
-$('#focusBtn').onclick=()=>{
-  state.focus=!state.focus;$('#focusBtn').setAttribute('aria-pressed',state.focus);
-  $('#stage').hidden=state.focus;$('#focusView').hidden=!state.focus;if(state.focus) renderFocus();
+$('#newWorkBtn').onclick=()=>openOrderForm();
+const showAuto=()=>{const b=$('#autoBtn');b.setAttribute('aria-pressed',state.auto);b.textContent=state.auto?'自动派单：开':'自动派单：关';};
+$('#autoBtn').onclick=()=>{
+  state.auto=!state.auto;showAuto();
+  try{localStorage.setItem('studio.auto',state.auto?'1':'0');}catch{/* private window: the choice lasts until reload */}
+  toast(state.auto?'自动派单开了：待分配的订单会按岗位交给空闲的人':'自动派单关了：订单留在任务板上，由你拖给员工');
+  renderOrders();renderBoardHint();
 };
-$('#newOrderBtn').onclick=()=>openOrderForm();
 
 /* ---------- modal: hire / report ---------- */
 const modal=$('#modal'),card=$('#modalCard');
 function openModal(html){card.innerHTML=html;modal.hidden=false;card.querySelector('button')?.focus();}
 function closeModal(){modal.hidden=true;card.classList.remove('wide');}
-modal.addEventListener('click',ev=>{if(ev.target===modal&&!state.ended) closeModal();});
+modal.addEventListener('click',ev=>{if(ev.target===modal) softClose();});
+// Esc or a click outside closes a window only when nothing has been typed into it; a half-written order stays until 取消 or 创建
+function softClose(){
+  const typed=[...card.querySelectorAll('input[type=text],input:not([type]),textarea')].some(x=>!x.readOnly&&x.value!==x.defaultValue);
+  if(typed){toast('窗口里还有没保存的内容。不要了就点「取消」。');return;}
+  closeModal();
+}
 $('#hireBtn').onclick=()=>{
   const freeDesk=DESKS.some(d=>!d.owner);
-  const html=`<h2>招聘</h2><p class="label">同一种 AI 可以招好几个人：他们用同一个模型，但各有自己的名字、偏好、经验和默契。工位一共 ${DESKS.length} 个，机房 1 个。</p>
+  const html=`<h2>招聘</h2><p class="label">同一种 AI 可以招好几个人：他们用同一个模型，但各有自己的名字、岗位、偏好和经验。新订单会按岗位自动派给对口的人。工位一共 ${DESKS.length} 个，机房 1 个。</p>
   <div class="cands">${Object.entries(TYPES).map(([type,d])=>{
     const have=state.emps.filter(e=>e.type===type);
     const lock=d.needs==='server'&&!state.unlocked.server,full=d.needs==='server'?!!SERVER_DESK.owner:!freeDesk;
@@ -1895,7 +2041,8 @@ $('#hireBtn').onclick=()=>{
       <dl class="stats"><dt>速度</dt><dd class="pips">${pips(d.speed)}</dd><dt>记忆力</dt><dd class="pips">${pips(d.memory)}</dd>
         <dt>已有</dt><dd>${have.length?have.map(e=>esc(e.name)).join('、'):'还没有'}</dd></dl>
       <input type="text" data-name="${type}" value="${esc(nextName(type))}" maxlength="12" aria-label="${esc(d.model)} 新员工的名字">
-      <textarea data-persona="${type}" rows="2" maxlength="300" placeholder="岗位与专长（可不填），比如：资深前端，擅长手机页面" aria-label="${esc(d.model)} 新员工的岗位与专长"></textarea>
+      <select data-post="${type}" aria-label="${esc(d.model)} 新员工的岗位">${postOptions(DEFAULT_POST[type]||'general')}</select>
+      <textarea data-persona="${type}" rows="2" maxlength="300" placeholder="专长（可不填），比如：资深前端，擅长手机页面" aria-label="${esc(d.model)} 新员工的专长"></textarea>
       <button class="btn primary" data-hire="${type}"${lock||full?' disabled':''}>${lock?'需要先解锁服务器机房':full?(d.needs==='server'?'机房工位满了':'工位满了'):'录用'}</button></div>`;}).join('')}</div>
   <div class="row-btns"><button class="btn" id="closeModal">关闭</button></div>`;
   openModal(html);
@@ -1904,31 +2051,36 @@ $('#hireBtn').onclick=()=>{
   card.querySelectorAll('[data-hire]').forEach(b=>b.onclick=()=>{
     const type=b.dataset.hire,name=card.querySelector(`[data-name="${type}"]`).value.trim();
     if(name&&state.emps.some(e=>e.name===name)){toast(`已经有人叫「${name}」了，换个名字。`,'warn');return;}
-    const persona=card.querySelector(`[data-persona="${type}"]`).value.trim();
-    const e=hire(type,true,{name:name||undefined,persona});closeModal();
-    if(e){toast(`${e.name}（${e.model}）入职了，正走向茶水间`,'ok');select(e);}
+    const persona=card.querySelector(`[data-persona="${type}"]`).value.trim(),post=card.querySelector(`[data-post="${type}"]`).value;
+    const e=hire(type,true,{name:name||undefined,persona,post});closeModal();
+    if(e){toast(`${e.name}（${postLabel(e.post)}）入职了，有对口的订单会自动派给 TA`,'ok');select(e);renderOrders();}
   });
   $('#closeModal').onclick=closeModal;
 };
-$('#endDayBtn').onclick=()=>openReport(false);
-function openReport(auto){
-  setSpeed(0);
+$('#reportBtn').onclick=()=>openReport();
+// 18:00 closes the day on its own: nothing pops up over what the boss is doing, the report waits behind the 日报 button
+function endDay(){
   const s=state.stats;
-  const html=`<h2>第 ${state.day} 天 · 日报</h2>
-  <p class="label">${auto?'18:00，下班了。':'提前结算。'}以下是今天的情况。</p>
-  <div class="kpis"><div><b class="num">${s.done}</b><span>交付订单</span></div><div><b class="num">${yuan(s.spent)}</b><span>花费（每日预算 ${yuan(state.budget)}）</span></div><div><b class="num">${s.reviews?(s.stars/s.reviews).toFixed(1):'—'}</b><span>平均评分（满分 3 星）· 返工 ${s.reworks} 次</span></div><div><b class="num">${s.asks}</b><span>请你确认（自动批准 ${s.auto} 次）</span></div><div><b class="num">${s.collab}</b><span>员工之间的协作（交接、求助、开会）</span></div></div>
-  <h3>今天你做的决定</h3>
-  ${s.decisions.length?`<ul>${s.decisions.map(d=>`<li>${esc(d.task)}：${esc(d.q)} → <b>${esc(d.a)}</b>${d.split?'（两人有分歧）':''}${d.auto?'（自动）':''}</li>`).join('')}</ul>`:'<p class="empty">今天没有需要你拍板的事。</p>'}
+  state.reports.unshift({day:state.day,stats:s,emps:state.emps.map(e=>({name:e.name,spent:e.spent,stamina:e.stamina}))});
+  state.reports.length=Math.min(state.reports.length,7);
+  state.day++;state.minutes=9*60;state.stats=newStats();state.funds=state.budget;planArrivals();
+  state.emps.forEach(e=>{e.stamina=Math.min(100,e.stamina+40);e.tiredWarned=e.stamina<25;e.spent=0;});
+  toast(`第 ${state.day-1} 天结束：交付 ${s.done} 单，花费 ${yuan(s.spent)}。第 ${state.day} 天开工，预算恢复到 ${yuan(state.budget)}。`,'ok');
+  dirty();
+}
+function reportHTML(s,emps){
+  return `<div class="kpis"><div><b class="num">${s.done}</b><span>交付订单</span></div><div><b class="num">${yuan(s.spent)}</b><span>花费（每日预算 ${yuan(state.budget)}）</span></div><div><b class="num">${s.reviews?(s.stars/s.reviews).toFixed(1):'—'}</b><span>平均评分（满分 3 星）· 返工 ${s.reworks} 次</span></div><div><b class="num">${s.asks}</b><span>过程中的决定（员工自己定了 ${s.auto} 个）</span></div><div><b class="num">${s.collab}</b><span>员工之间的协作（交接、求助、开会）</span></div></div>
+  <h3>做过的决定</h3>
+  ${s.decisions.length?`<ul>${s.decisions.map(d=>`<li>${esc(d.task)}：${esc(d.q)} → <b>${esc(d.a)}</b>${d.split?'（两人有分歧）':''}${d.auto?'（员工自己定的）':''}</li>`).join('')}</ul>`:'<p class="empty">没有需要拍板的事。</p>'}
   <h3>员工</h3>
-  <ul>${state.emps.map(e=>`<li>${esc(e.name)}：花费 ${yuan(e.spent)}，精力 ${Math.round(e.stamina)}%${e.stamina<25?'，建议明天先让 TA 压缩记忆':''}</li>`).join('')}</ul>
-  <div class="row-btns"><button class="btn primary" id="nextDay">开始第 ${state.day+1} 天</button><button class="btn" id="keepWorking">${state.ended?'留下加班':'继续今天'}</button></div>`;
-  openModal(html);
-  $('#nextDay').onclick=()=>{
-    state.day++;state.minutes=9*60;state.ended=false;state.stats=newStats();state.funds=state.budget;planArrivals();
-    state.emps.forEach(e=>{e.stamina=Math.min(100,e.stamina+40);e.tiredWarned=e.stamina<25;e.spent=0;});
-    closeModal();setSpeed(1);toast(`第 ${state.day} 天开工。预算恢复到 ${yuan(state.budget)}，员工精力也恢复了一些。`);dirty();
-  };
-  $('#keepWorking').onclick=()=>{closeModal();setSpeed(1);};
+  <ul>${emps.map(e=>`<li>${esc(e.name)}：花费 ${yuan(e.spent)}，精力 ${Math.round(e.stamina)}%${e.stamina<25?'，建议让 TA 下班休息（压缩记忆）':''}</li>`).join('')}</ul>`;
+}
+function openReport(){
+  openModal(`<h2>第 ${state.day} 天 · 日报</h2><p class="label">到 ${clock()} 为止。每天 18:00 自动进入下一天，不会打断你手上的事。</p>
+  ${reportHTML(state.stats,state.emps)}
+  ${state.reports.map(r=>`<details class="more"><summary>第 ${r.day} 天</summary>${reportHTML(r.stats,r.emps)}</details>`).join('')}
+  <div class="row-btns"><button class="btn" id="closeReport">关闭</button></div>`);
+  $('#closeReport').onclick=closeModal;
 }
 
 /* ---------- projects: one piece of work split into roles, handed from person to person ---------- */
@@ -1949,7 +2101,7 @@ function launchProject(pl,workorder){
   if(pl.order){state.orders=state.orders.filter(o=>o!==pl.order);renderOrders();}
   projectPeople(p).forEach(e=>addLog(e,{kind:'sys',text:`加入项目「${p.name}」，负责：${p.roles.filter(r=>r.who===e.id).map(r=>r.name).join('、')}`}));
   toast(`项目「${p.name}」开始：${p.roles.length} 份分工，${projectPeople(p).length} 个人接力`,'ok');
-  goal('plan');setTab('proj');tickProject(p);dirty();
+  tickProject(p);dirty();
 }
 // start every role whose inputs are ready and whose owner is free
 function tickProject(p){
@@ -2019,7 +2171,7 @@ function resolveGate(q,ok,feedback){
   addLog(e,{kind:'boss',text:decision});
   API.post('/api/approvals',{kind:'approve',task:`${p.name} · ${r.name}`,project_id:p.sid,title:`${r.name}做完了：${r.out||r.name}`,detail:q.res.summary||'',
     risk:'high',decision,auto:false,people:[e.name],day:state.day,time:clock()});
-  goal('approve');
+  
   if(ok) handOver(p,r,e);
   else{
     say(e,'明白，马上改');goTo(e,e.desk.seat);
@@ -2060,51 +2212,49 @@ function reworkProject(j,key){
   toast(`项目已打回：${rs.label}。由${empName(last.who)}按「${last.name}」返工。`);
   placeQueue();renderQueue();dirty();
 }
-function renderProjects(){
-  const el=$('#tabProj');
-  const open=state.projects.filter(p=>!p.done).length;
-  $('#projCount').textContent=open?`（${open}）`:'';
-  if(!state.projects.length){el.innerHTML='<p class="empty">还没有多人项目。点顶部「安排工作」，把一份工作拆给几个人接力完成。</p>';return;}
-  const ST={wait:'待开始',run:'进行中',writing:'正在写交付物',gate:'等你确认',done:'已完成'};
-  el.innerHTML=[...state.projects].reverse().map(p=>`<div class="proj"><b>${esc(p.name)}${p.done?' · 已验收':''}</b>
-    <span class="cost num">${p.roles.filter(r=>r.status==='done').length}/${p.roles.length} 份分工完成 · 已花 ${yuan(p.cost)}</span>
-    <ol>${p.roles.map(r=>{
-      const waitFor=r.deps.filter(k=>p.roles[k].status!=='done').map(k=>p.roles[k].name),e=empOf(r.who);
-      const note=r.status!=='wait'?'':waitFor.length?`等 ${waitFor.join('、')}`:e&&(e.job||e.waiting)?`${e.name} 手上还有别的活`:'马上开始';
-      return `<li class="st-${r.status}">${esc(r.name)} · ${esc(empName(r.who))} · ${ST[r.status]}${note?`（${esc(note)}）`:''}</li>`;}).join('')}</ol></div>`).join('');
-}
-
 /* ---------- work planner window ---------- */
 const TEMPLATES={
   app:{name:'点餐小程序',goal:'做一个餐厅用的点餐小程序：顾客扫码看菜单、加购物车、下单，后厨能看到新订单。',roles:[
-    {name:'需求分析',desc:'梳理点餐流程：看菜单、加购物车、下单、出餐通知；列出页面清单和边界情况。',out:'需求文档（PRD）',deps:[],gate:true},
-    {name:'界面设计',desc:'画出菜单页、购物车、订单状态 3 个页面的线框图。',out:'页面线框图',deps:[0],gate:false},
-    {name:'后端开发',desc:'设计菜品、订单两张表，提供菜单查询、下单、订单状态三个接口。',out:'后端接口和接口文档',deps:[0],gate:false},
-    {name:'前端开发',desc:'按线框图实现 3 个页面，对接后端接口。',out:'前端页面代码',deps:[1,2],gate:false},
-    {name:'测试验收',desc:'走一遍完整点餐流程，记录问题，修完后回归。',out:'测试报告',deps:[2,3],gate:true}]},
+    {name:'需求分析',post:'pm',desc:'梳理点餐流程：看菜单、加购物车、下单、出餐通知；列出页面清单和边界情况。',out:'需求文档（PRD）',deps:[],gate:true},
+    {name:'界面设计',post:'design',desc:'画出菜单页、购物车、订单状态 3 个页面的线框图。',out:'页面线框图',deps:[0],gate:false},
+    {name:'后端开发',post:'backend',desc:'设计菜品、订单两张表，提供菜单查询、下单、订单状态三个接口。',out:'后端接口和接口文档',deps:[0],gate:false},
+    {name:'前端开发',post:'frontend',desc:'按线框图实现 3 个页面，对接后端接口。',out:'前端页面代码',deps:[1,2],gate:false},
+    {name:'测试验收',post:'qa',desc:'走一遍完整点餐流程，记录问题，修完后回归。',out:'测试报告',deps:[2,3],gate:true}]},
   report:{name:'竞品调研报告',goal:'调研 5 款竞品，给出我们能切入的机会点。',roles:[
-    {name:'资料收集',desc:'找 5 款竞品的定价、功能、用户评价，整理成表。',out:'资料表',deps:[],gate:false},
-    {name:'分析撰写',desc:'基于资料表写分析和结论，给出 3 个机会点。',out:'报告初稿',deps:[0],gate:false},
-    {name:'审稿把关',desc:'检查数据来源和逻辑漏洞，提出修改意见并定稿。',out:'定稿报告',deps:[1],gate:true}]},
-  blank:{name:'',goal:'',roles:[{name:'',desc:'',out:'',deps:[],gate:false}]},
+    {name:'资料收集',post:'research',desc:'找 5 款竞品的定价、功能、用户评价，整理成表。',out:'资料表',deps:[],gate:false},
+    {name:'分析撰写',post:'research',desc:'基于资料表写分析和结论，给出 3 个机会点。',out:'报告初稿',deps:[0],gate:false},
+    {name:'审稿把关',post:'qa',desc:'检查数据来源和逻辑漏洞，提出修改意见并定稿。',out:'定稿报告',deps:[1],gate:true}]},
+  // any other work: someone pins down what is wanted, the right post makes it, a tester checks it
+  basic:{name:'',goal:'',roles:[
+    {name:'需求梳理',post:'pm',desc:'把目标拆成具体清单：要做什么、给谁用、做到什么程度算完成。',out:'需求清单',deps:[],gate:true},
+    {name:'主体制作',post:'',desc:'按需求清单把主体做出来。',out:'主体交付物',deps:[0],gate:false},
+    {name:'审查定稿',post:'qa',desc:'对照需求清单逐条检查，提出修改意见并定稿。',out:'审查记录和定稿',deps:[1],gate:false}]},
+  blank:{name:'',goal:'',roles:[{name:'',desc:'',out:'',deps:[],gate:false,post:'general'}]},
 };
 let plan=null;
 function seedPlan(key,over={}){
-  const t=TEMPLATES[key],ids=state.emps.map(e=>e.id);
-  plan={name:over.name??t.name,goal:over.goal??t.goal,order:over.order||null,
-    roles:t.roles.map((r,i)=>({...r,deps:[...r.deps],who:ids[i%ids.length]}))};
+  const t=TEMPLATES[key],load={};
+  // each role goes to someone holding its post, spreading the work; no one in that post, then a generalist, then whoever has least
+  const whoFor=post=>{
+    const least=l=>l.sort((a,b)=>(load[a.id]||0)-(load[b.id]||0))[0];
+    const e=least(state.emps.filter(e=>e.post===post))||least(state.emps.filter(e=>e.post==='general'))||least([...state.emps]);
+    if(e) load[e.id]=(load[e.id]||0)+1;
+    return e?.id;
+  };
+  const name=over.name??t.name,goal=over.goal??t.goal,main=postOf({title:name,brief:goal});
+  plan={name,goal,order:over.order||null,roles:t.roles.map(r=>({...r,deps:[...r.deps],who:whoFor(r.post||main)}))};
 }
 function openPlanner(seed){
-  if(seed) seedPlan(seed.order?'report':'app',seed);
+  if(seed) seedPlan(seed.name||seed.order?'basic':'app',seed);
   else if(!plan) seedPlan('app');
   card.classList.add('wide');
   openModal(plannerHTML());bindPlanner();
 }
 function plannerHTML(){
-  const opts=id=>state.emps.map(e=>`<option value="${e.id}"${e.id===id?' selected':''}>${esc(e.name)} · ${esc(e.model)}</option>`).join('');
-  return `<h2>安排工作</h2>
-  <p class="label">把一份工作拆成几份分工，每份指定负责人、交付物和开始条件。员工按顺序接力，没有依赖关系的会同时开工。</p>
-  <div class="tpl">从模板开始：<button type="button" class="btn" data-tpl="app">点餐小程序</button><button type="button" class="btn" data-tpl="report">调研报告</button><button type="button" class="btn" data-tpl="blank">空白</button></div>
+  const opts=id=>state.emps.map(e=>`<option value="${e.id}"${e.id===id?' selected':''}>${esc(e.name)} · ${postLabel(e.post)}</option>`).join('');
+  return `<h2>多人项目</h2>
+  <p class="label">把一份工作拆成几份分工。负责人已按岗位填好，可以改；员工按顺序接力，没有依赖关系的会同时开工。只有勾了「做完先给我确认」的分工和最后的整体验收会来找你。</p>
+  <div class="tpl">从模板开始：<button type="button" class="btn" data-tpl="app">点餐小程序</button><button type="button" class="btn" data-tpl="report">调研报告</button><button type="button" class="btn" data-tpl="basic">通用三步</button><button type="button" class="btn" data-tpl="blank">空白</button></div>
   <label class="field">项目名<input id="pName" value="${esc(plan.name)}" placeholder="比如：点餐小程序"></label>
   <label class="field">目标（每个人开工前都会先读这一段）<textarea id="pGoal" rows="2" placeholder="要做成什么样，给谁用">${esc(plan.goal)}</textarea></label>
   <div class="roles">${plan.roles.map((r,i)=>`<div class="role">
@@ -2162,7 +2312,7 @@ function bindPlanner(){
     rerenderPlanner();
   });
   c.querySelectorAll('[data-tpl]').forEach(b=>b.onclick=()=>{
-    const k=b.dataset.tpl;seedPlan(k,k==='blank'?{name:plan.name,goal:plan.goal,order:plan.order}:{order:plan.order});rerenderPlanner();
+    const k=b.dataset.tpl;seedPlan(k,k==='blank'||k==='basic'?{name:plan.name,goal:plan.goal,order:plan.order}:{order:plan.order});rerenderPlanner();
   });
   $('#addRole').onclick=()=>{
     const n=plan.roles.length;
@@ -2183,7 +2333,6 @@ function bindPlanner(){
   };
   renderStages();
 }
-$('#planBtn').onclick=()=>openPlanner();
 
 /* ---------- toast ---------- */
 function toast(msg,kind=''){
@@ -2215,7 +2364,7 @@ async function freshStart(){
 function restore(saved){
   for(const s of saved.employees){
     const pr=s.profile||{},type=pr.type||s.id;
-    const e=hire(type,false,{id:s.id,name:s.name,persona:pr.persona,variant:pr.variant});
+    const e=hire(type,false,{id:s.id,name:s.name,persona:pr.persona,variant:pr.variant,post:pr.post});
     if(!e) continue;
     Object.assign(e,{level:s.level||1,xp:s.xp||0,speed:s.speed||e.speed,memory:s.memory||e.memory,stamina:s.stamina??100,spent:s.spent||0,prefs:s.prefs||[],bond:s.bond||{}});
     const sp=freeLounge()||LOUNGE[0];e.spot=sp;e.x=sp.x;e.y=sp.y;
@@ -2224,7 +2373,11 @@ function restore(saved){
   state.completed=saved.completed||0;
   for(const k of ['server','archive']) state.unlocked[k]=state.completed>=ROOMS[k].lock;
   drawBG();buildRoomLabels();
-  state.orders=saved.orders.map(o=>TASKS.find(t=>t.id===o.task_key)||Object.assign(customTask(o.title,o.brief),{id:o.id,est:o.est||'约 ¥1.0'}));
+  state.orders=saved.orders.map(o=>{
+    const t=TASKS.find(t=>t.id===o.task_key)||Object.assign(customTask(o.title,o.brief),{id:o.id,est:o.est||'约 ¥1.0'});
+    if(o.spec&&Object.keys(o.spec).length){t.spec=o.spec;t.out={...t.out,title:`《${o.spec.deliverable?.name||t.title}》`};}
+    return t;
+  });
   for(const sp of saved.projects){
     const p={id:uid(),sid:sp.id,name:sp.name,goal:sp.goal,cost:sp.cost||0,reworks:sp.reworks||0,decisions:[],done:false,
       roles:sp.roles.map(r=>({name:r.name,desc:r.description,out:r.output,deps:r.deps,gate:r.gate,who:r.who,i:r.idx,status:r.status==='done'?'done':'wait',rework:null}))};
@@ -2243,14 +2396,15 @@ async function boot(){
   // one line per kind of employee: which agent or API really writes for them
   const models=MODELS?(MODELS.fake?'测试替身（不调用真实模型）':Object.entries(MODELS.types).filter(([t])=>TYPES[t]).map(([t,pid])=>{
     const p=MODELS.providers[pid];return `${TYPES[t].model} 员工 → ${p.name}${p.configured?'':`（${p.hint}）`}`;}).join('；')):'';
-  $('#conn').textContent=API.on
-    ?`已连接公司后端，交付写进 Git、文档库和数据库。项目分工由员工自己的模型撰写，失败时用模板。${models}`
-    :'演示模式：没有连接公司后端，记录不会保存。在本机运行 node server.js 后打开 http://localhost:5300 使用完整版。';
+  $('#conn').textContent=API.on?'已连接 · 交付写进 Git、文档库和数据库':'演示模式 · 记录不会保存';
+  $('#conn').title=API.on?models:'没有连接公司后端。在本机运行 node server.js 后打开 http://localhost:5300 使用完整版。';
   $('#sysLink').hidden=!API.on;
   if(saved&&saved.employees.length) restore(saved);
   else await freshStart();
   planArrivals();
-  renderOrders();renderQueue();renderWall();renderHeader();renderGoals();renderProjects();renderStaff();
+  try{state.auto=localStorage.getItem('studio.auto')!=='0';}catch{/* storage blocked: auto stays on */}
+  showAuto();
+  renderOrders();renderQueue();renderWall();renderHeader();renderBoardHint();renderActive();renderStaff();
 }
 boot();
 // the simulation keeps running in a background tab (agents don't stop working); drawing only happens when visible
@@ -2258,10 +2412,10 @@ let last=performance.now(),acc=0;
 setInterval(()=>{
   const now=performance.now();let dt=Math.min(1.5,(now-last)/1000);last=now;T+=dt;acc+=dt;
   while(dt>0){const d=Math.min(.1,dt);update(d);dt-=d;}
-  if(acc>.25){acc=0;renderHeader();if(state.dirty){state.dirty=false;renderStaff();renderProjects();if(state.focus) renderFocus();}}
+  if(acc>.25){acc=0;renderHeader();if(state.dirty){state.dirty=false;renderStaff();renderActive();}}
 },40);
 function frame(){
-  if(!state.focus){draw();syncOverlay();}
+  draw();syncOverlay();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
