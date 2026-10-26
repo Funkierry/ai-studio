@@ -96,6 +96,7 @@ a.btn{display:inline-block;color:var(--text);text-decoration:none}
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .bubble.think{background:#d9d3e6;font-style:italic}
 .bubble.tool{background:#cfe6f5;font-family:ui-monospace,Consolas,monospace}
+.bubble.ask{background:#fbe6b9;color:var(--bg);border:2px solid var(--bg);padding:4px 7px;display:-webkit-box}
 .proto-flag{position:absolute;right:8px;bottom:8px;font-size:11px;color:var(--muted);background:rgba(27,24,36,.8);padding:1px 6px;pointer-events:none}
 @media (max-width:600px){.proto-flag{display:none}}
 
@@ -1371,6 +1372,8 @@ function drawDesk(d){
 /* ---------- characters: a 12×18 office sprite and a 32×32 portrait drawn from the same look ---------- */
 // sprite: feet at (e.x, e.y); rows run from the hair top (y0) down to the shoes (y0+17)
 function drawPerson(e){
+  const art=artOf(e.type,e.variant);
+  if(art?.ready){drawArtPerson(e,art);return;}
   const L=e.look,O=e.outfit,x=Math.round(e.x)-6,y=Math.round(e.y)-18;
   const walking=e.path.length>0,f=walking?Math.floor(e.anim*7)%2:0;
   const typing=(e.writing||(e.job&&e.job.phase==='run'))&&!walking,a=typing?Math.floor(e.anim*6)%2:0;
@@ -1495,13 +1498,21 @@ function portraitEl(look,outfit,size=64){
   const cv=document.createElement('canvas');cv.width=32;cv.height=32;cv.className='portrait';
   cv.style.width=cv.style.height=size+'px';drawPortrait(cv,look,outfit);return cv;
 }
-/* ---------- the boss's own pixel art for a kind of employee, brought to life ---------- */
-// DeepSeek娘 in the maid outfit, drawn by the boss (43×60). Marked parts: rows above `ahoge` sway, rows above `legs` breathe,
-// the two lenses blink, `head` is the crop used in small lists.
-const ART={deepseek:{variant:0,w:43,h:60,ahoge:4,legs:50,lenses:[[14,29],[24,29]],head:[6,3,32,32],
-  src:'data:image/png;base64,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'}};
-for(const a of Object.values(ART)){a.img=new Image();a.img.onload=()=>{a.ready=true;dirty();};a.img.src=a.src;}
-const artOf=(type,variant)=>{const a=ART[type];return a&&variant%TYPES[type].outfits.length===a.variant?a:null;};
+/* ---------- generated DeepSeek sprite, shared by the office and portraits ---------- */
+// Keep the original PNG intact. Its transparent margin is cropped only while rendering.
+const ART={deepseek:{generated:true,w:43,h:60,ahoge:4,legs:50,lenses:[[14,29],[24,29]],head:[6,3,32,32],
+  crop:[338,268,578,812],src:'/assets/deepseek-girl.png'}};
+for(const a of Object.values(ART)){
+  const source=new Image();
+  source.onload=()=>{
+    a.img=document.createElement('canvas');a.img.width=a.w;a.img.height=a.h;
+    const c=a.img.getContext('2d');c.imageSmoothingEnabled=false;
+    c.drawImage(source,...a.crop,0,0,a.w,a.h);
+    a.ready=true;dirty();
+  };
+  source.src=a.src;
+}
+const artOf=(type,variant)=>{const a=ART[type];return a&&(a.generated||variant%TYPES[type].outfits.length===a.variant)?a:null;};
 const artEls=new Set();
 // a canvas with the art: the full figure (with room above for a hop) or just the head; who: the employee whose mood drives it
 function artEl(a,scale,who,headOnly){
@@ -1518,15 +1529,38 @@ function paintArt(cv,t){
   const seed=who?who.name.length*.37:0,working=who&&(who.writing||(who.job&&who.job.phase==='run'));
   // breathing (quicker while working), ahoge swaying, a blink every few seconds, and little hops while waiting on the boss
   const breath=Math.floor(t*(working?2.8:1.2)+seed)%2,sway=[0,1,0,-1][Math.floor(t*1.5+seed)%4];
-  const blink=(t+seed)%3.7<.15,hop=!headOnly&&who&&who.waiting?[0,2,3,2,0,0,0,0][Math.floor(t*12)%8]:0;
+  const walking=!headOnly&&who?.path.length>0,step=Math.floor(t*7)%2;
+  const blink=(t+seed)%3.7<.15,hop=walking?(step?2:0):!headOnly&&who&&who.waiting?[0,2,3,2,0,0,0,0][Math.floor(t*12)%8]:0;
   const ox=headOnly?-a.head[0]:0,oy=headOnly?-a.head[1]:3-hop;
-  c.drawImage(a.img,0,a.legs,a.w,a.h-a.legs,ox,oy+a.legs,a.w,a.h-a.legs);
+  if(walking){
+    const half=Math.floor(a.w/2),h=a.h-a.legs;
+    c.drawImage(a.img,0,a.legs,half,h,ox,oy+a.legs+(step?-2:0),half,h);
+    c.drawImage(a.img,half,a.legs,a.w-half,h,ox+half,oy+a.legs+(step?0:-2),a.w-half,h);
+  }else c.drawImage(a.img,0,a.legs,a.w,a.h-a.legs,ox,oy+a.legs,a.w,a.h-a.legs);
   c.drawImage(a.img,0,a.ahoge,a.w,a.legs-a.ahoge,ox,oy+a.ahoge+breath,a.w,a.legs-a.ahoge);
   c.drawImage(a.img,0,0,a.w,a.ahoge,ox+sway,oy+breath,a.w,a.ahoge);
   if(blink) for(const [lx,ly] of a.lenses){
     c.fillStyle='#fcdece';c.fillRect(ox+lx,oy+ly+breath,5,4);
     c.fillStyle='#081350';c.fillRect(ox+lx,oy+ly+2+breath,5,1);
   }
+}
+function drawArtPerson(e,a){
+  if(!e.officeArt){
+    e.officeArt=document.createElement('canvas');e.officeArt.width=a.w;e.officeArt.height=a.h+3;
+    e.officeArt._art={a,who:e,headOnly:false};
+  }
+  paintArt(e.officeArt,e.anim);
+  const w=17,h=24,x=Math.round(e.x)-8,y=Math.round(e.y)-h;
+  ctx.fillStyle='rgba(0,0,0,.28)';ctx.fillRect(x+3,Math.round(e.y)-1,11,2);
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(e.officeArt,x,y,w,h);
+  if(e.writing&&!e.path.length){
+    const tap=Math.floor(e.anim*6)%2;
+    R(ctx,'#f8dfcb',x+6,y+17+tap,2,1);R(ctx,'#f8dfcb',x+10,y+18-tap,2,1);
+  }
+  if(e.carry){R(ctx,'#efe9dc',x+13,y+15,4,5);R(ctx,'#c3a6ea',x+13,y+15,4,1);}
+  if(state.selected===e)R(ctx,'#f2b544',x,Math.round(e.y)+1,w,1);
+  if(state.dropHover===e.id){ctx.strokeStyle='#f2b544';ctx.lineWidth=1;ctx.strokeRect(x-1.5,y-1.5,w+3,h+3);}
 }
 // an employee's picture: the boss's art when there is one for them, otherwise the drawn portrait
 function avatarEl(e,size,full){
@@ -1607,7 +1641,8 @@ function syncOverlay(){
   const placed=[];
   for(const e of state.emps){
     const t=e.tagEl,b=e.bubEl;
-    t.style.left=pct(e.x,W);t.style.top=pct(e.y-21,H);
+    const height=artOf(e.type,e.variant)?.ready?27:21;
+    t.style.left=pct(e.x,W);t.style.top=pct(e.y-height,H);
     t.classList.toggle('sel',state.selected===e);
     const [ic,cls]=statusIcon(e),st=t.firstChild;
     if(st.textContent!==ic){st.textContent=ic;st.className='st '+cls;}
@@ -1615,7 +1650,7 @@ function syncOverlay(){
       if(b.hidden) b.hidden=false;
       if(b.dataset.txt!==e.bubble){b.dataset.txt=e.bubble;b.textContent=e.bubble;b.className='bubble '+e.bubbleKind;}
       // stack bubbles of people standing close together instead of overlapping them
-      const bx=Math.min(Math.max(e.x,46),W-46);let by=e.y-30;
+      const bx=Math.min(Math.max(e.x,46),W-46);let by=e.y-height-9;
       while(placed.some(p=>Math.abs(p.x-bx)<80&&Math.abs(p.y-by)<15)) by-=15;
       placed.push({x:bx,y:by});
       b.style.left=pct(bx,W);b.style.top=pct(by,H);
@@ -1631,7 +1666,10 @@ function toLocal(cx,cy){
 }
 function empAt(p){
   let hit=null;
-  for(const e of state.emps) if(Math.abs(p.x-e.x)<=8&&p.y>=e.y-22&&p.y<=e.y+3&&(!hit||e.y>hit.y)) hit=e;
+  for(const e of state.emps){
+    const h=artOf(e.type,e.variant)?.ready?25:22;
+    if(Math.abs(p.x-e.x)<=9&&p.y>=e.y-h&&p.y<=e.y+3&&(!hit||e.y>hit.y))hit=e;
+  }
   return hit;
 }
 const inRoom=(p,r)=>p.x>=r.x&&p.x<r.x+r.w&&p.y>=r.y&&p.y<r.y+r.h;
