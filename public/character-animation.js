@@ -28,19 +28,20 @@ export function loadCharacterFrames() {
       if (image.naturalWidth !== 1448 || image.naturalHeight !== 1086) {
         reject(new Error('角色动作图尺寸不匹配')); return;
       }
-      // Generated rows have different gutters. A shared crop per row aligns faces.
-      const rows = [44, 382, 713];
-      resolve(rows.flatMap(y => Array.from({ length: 4 }, (_, column) => {
+      // Preserve the pixel grid. Row-specific gutters keep adjacent poses out
+      // of the crop while aligning the top of the head across all three clips.
+      const rows = [[34, 344], [379, 342], [716, 344]];
+      resolve(rows.flatMap(([y, height]) => Array.from({ length: 4 }, (_, column) => {
         const canvas = document.createElement('canvas');
-        canvas.width = CHARACTER.width * 4; canvas.height = CHARACTER.height * 4;
+        canvas.width = CHARACTER.width; canvas.height = CHARACTER.height;
         const context = canvas.getContext('2d');
-        context.imageSmoothingEnabled = true; context.imageSmoothingQuality = 'high';
-        context.drawImage(image, column * 362 + 35, y, 300, 328, 0, 0, canvas.width, canvas.height);
+        context.imageSmoothingEnabled = false;
+        context.drawImage(image, column * 362 + 25, y, 320, height, 0, 0, canvas.width, canvas.height);
         return canvas;
       })));
     };
     image.onerror = () => reject(new Error('角色动作图加载失败'));
-    image.src = new URL('./assets/deepseek-girl-animations.png', import.meta.url).href;
+    image.src = new URL('./assets/deepseek-girl-animations-pixel.png', import.meta.url).href;
   });
   return sheetPromise;
 }
