@@ -2,12 +2,12 @@
 export function createOfficeMotion({ employees, move, say, handoff, idleSpot, reviewSpot, stepEmployee, stepPackets }) {
   let seen = new Map();
   const visits = new Map();
-  const nameOf = (s, j) => j.project_id
+  const nameOf = (s, j) => j.discussion ? '项目讨论' : j.project_id
     ? s.projects.find(p => p.id === j.project_id)?.roles.find(r => r.idx === j.role_idx)?.name || '任务'
     : s.orders.find(o => o.id === j.order_id)?.title || '任务';
-  const awaitingReview = (s, j) => j.status === 'review' ||
+  const awaitingReview = (s, j) => !j.discussion && (j.status === 'review' ||
     (j.status === 'done' && s.projects.find(p => p.id === j.project_id)?.status === 'review' &&
-      s.projects.find(p => p.id === j.project_id)?.roles.at(-1)?.idx === j.role_idx);
+      s.projects.find(p => p.id === j.project_id)?.roles.at(-1)?.idx === j.role_idx));
   const rest = e => {
     e.writing = null; e.waiting = false; e.carry = false;
     visits.delete(e.id);
@@ -16,6 +16,7 @@ export function createOfficeMotion({ employees, move, say, handoff, idleSpot, re
   };
 
   function sync(s) {
+    s={...s,jobs:[...s.jobs,...s.projects.flatMap(p=>(p.discussion||[]).map(t=>({...t,id:`discussion:${t.id}`,project_id:p.id,discussion:true})))]};
     const staff = employees(), byId = new Map(staff.map(e => [e.id, e]));
     const running = new Map(s.jobs.filter(j => j.status === 'running').map(j => [j.employee, j]));
     // Cancel a delivery visit immediately if the employee receives new work or it is approved.
@@ -37,7 +38,7 @@ export function createOfficeMotion({ employees, move, say, handoff, idleSpot, re
         say(e, '交付好了，等你验收', 'ask');
       } else if (prev?.status === 'running' || ['failed', 'interrupted'].includes(j.status)) {
         rest(e);
-        say(e, j.status === 'failed' ? '这次没完成，请看任务里的原因' : j.status === 'interrupted' ? '调用中断了，需要你确认重试' : '这份完成，已保存交付', j.status === 'done' ? 'say' : 'ask');
+        say(e, j.status === 'failed' ? '这次没完成，请看任务里的原因' : j.status === 'interrupted' ? '调用中断了，需要你确认重试' : j.discussion ? '已在项目群里回复' : '这份完成，已保存交付', j.status === 'done' ? 'say' : 'ask');
       }
     }
     for (const [id, j] of running) {
@@ -50,7 +51,7 @@ export function createOfficeMotion({ employees, move, say, handoff, idleSpot, re
       say(e, `${j.attempt > 1 ? '按修改意见继续：' : '开始：'}${nameOf(s, j)}`, 'think');
       const p = s.projects.find(p => p.id === j.project_id);
       const role = p?.roles.find(r => r.idx === j.role_idx);
-      for (const dep of role?.deps || []) {
+      for (const dep of j.discussion ? [] : role?.deps || []) {
         const upstream = s.jobs.find(u => u.project_id === j.project_id && u.role_idx === dep && u.status === 'done');
         const from = upstream && byId.get(upstream.employee);
         if (from && from !== e) {

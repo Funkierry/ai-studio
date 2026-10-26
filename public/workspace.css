@@ -23,6 +23,19 @@
 #workspace .ws-error{white-space:pre-wrap;color:var(--bad);padding:10px;border-left:3px solid var(--bad);background:var(--bg)}
 #workspace .ws-notice{margin-bottom:16px;padding:12px 16px;border:1px solid var(--line);border-radius:5px;color:var(--muted)}
 #workspace .ws-views{display:flex;gap:8px;margin:0 0 16px}
+#workspace #ws-chat{display:none}
+#workspace[data-view=discussion] #ws-chat{display:block}
+#workspace[data-view=discussion] #ws-detail{display:none}
+#workspace .ws-check{display:flex;align-items:center;gap:10px}
+#workspace .ws-check input{width:auto}#workspace .ws-check span{margin:0}
+#workspace #ws-messages{max-height:58vh;min-height:220px;overflow:auto;scroll-behavior:auto;padding:8px 2px;overflow-anchor:none}
+#workspace .ws-message{border:1px solid var(--line);border-radius:8px;padding:14px;margin:10px 0;background:var(--bg);overflow-wrap:anywhere}
+#workspace .ws-message.boss{border-left:3px solid var(--accent)}#workspace .ws-message.employee{border-left:3px solid var(--info)}
+#workspace .ws-message.system{color:var(--muted);font-size:12px;background:transparent}
+#workspace .ws-message p{white-space:pre-wrap;margin:8px 0}
+#workspace .ws-message-meta{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+#workspace .ws-message-meta small{margin-left:auto;color:var(--muted);font-size:11px}
+#workspace .ws-reply{font-size:11px}
 #workspace .ws-office{display:none;min-width:0}#workspace .ws-office>p{margin-top:12px}
 #workspace[data-view=office] .ws-grid{grid-template-columns:minmax(0,1fr) 330px}
 #workspace[data-view=office] .ws-office{display:block;grid-column:1;grid-row:1/span 2}

@@ -15,31 +15,72 @@ export async function mountWorkspace({ office, models, onSnapshot, avatar }) {
   const css = document.createElement('link'); css.rel='stylesheet';css.href='/workspace.css';document.head.append(css);
   const root = document.createElement('main');root.id='workspace';document.body.prepend(root);
   root.innerHTML=`<header class="ws-top px"><div class="intro"><h1>AI 工作室</h1><p class="muted" id="ws-status">正在连接执行服务…</p></div><button class="btn primary" id="ws-create">＋ 新工作</button><button class="btn" id="ws-hire">添加员工</button><a class="btn" href="/company.html" target="_blank" rel="noopener">文件与记录 ↗</a></header>
-    <nav class="ws-views" aria-label="工作区视图"><button class="btn" data-view="office" aria-pressed="true">像素工作室</button><button class="btn" data-view="tasks" aria-pressed="false">任务工作台</button></nav>
+    <nav class="ws-views" aria-label="工作区视图"><button class="btn" data-view="office" aria-pressed="true">像素工作室</button><button class="btn" data-view="tasks" aria-pressed="false">任务工作台</button><button class="btn" data-view="discussion" aria-pressed="false">项目讨论</button></nav>
     <div id="ws-notice" role="status"></div><div class="ws-grid">
     <section class="ws-office"><div id="ws-office"></div><p class="muted">点击小人查看工作，点击右侧任务查看交付。代码库和文档库仍在办公室里。 <a href="/character-preview.html" target="_blank" rel="noopener">角色动作预览 ↗</a></p></section>
     <section class="ws-panel ws-list"><h2>工作</h2><label><span>显示</span><select id="ws-filter"><option value="active">正在进行</option><option value="all">全部任务</option><option value="done">已完成</option></select></label><div id="ws-tasks" class="ws-tasks"></div></section>
-    <section class="ws-panel" id="ws-detail" aria-label="任务详情"></section><aside class="ws-panel ws-team"><h2>员工</h2><p class="muted">只在真实调用期间占用员工</p><div id="ws-team"></div></aside></div>
+    <section class="ws-panel" id="ws-detail" aria-label="任务详情"></section>
+    <section class="ws-panel" id="ws-chat" aria-label="项目讨论"><div id="ws-chat-heading"></div><button class="btn" id="ws-chat-older" hidden>查看更早的消息</button><div id="ws-messages" role="log" aria-live="polite" aria-label="员工讨论记录"></div><p id="ws-chat-running" class="muted"></p><form id="ws-chat-form"><label><span>发给</span><select name="targetRole" aria-label="接收员工"></select></label><label><span>补充要求或回答员工的问题</span><textarea name="body" maxlength="6000" required placeholder="例如：先做最小可用版本，数据保存在本机；你们自行确定界面和接口。"></textarea></label><button class="btn primary" type="submit">发送到项目</button><p class="muted">消息会保留，并进入员工的实际上下文。正在执行的调用结束后再处理新消息。</p><p class="form-error" role="alert"></p></form></section>
+    <aside class="ws-panel ws-team"><h2>员工</h2><p class="muted">只在真实调用期间占用员工</p><div id="ws-team"></div></aside></div>
     <dialog id="ws-dialog"></dialog>`;
   root.querySelector('#ws-office').append(office);
   const $ = s => root.querySelector(s);
   let data, selected = null, filter='active', busy=false, lastDetail='', lastTasks='', lastTeam='', dismissedNotice=false;
   const drafts=new Map(), expanded=new Set(), previews=new Map();
   const previewCache=new Map();
+  const chatCache=new Map(),chatDrafts=new Map(),sendIds=new Map();
+  let chatProject=null,chatLoading=false,lastChat='',lastChatHeading='';
   const person = id => data.employees.find(e=>e.id===id)?.name || id;
   const optEmployees = preferred => data.employees.map(e=>`<option value="${esc(e.id)}"${e.id===preferred?' selected':''}>${esc(e.name)} · ${esc(e.profile?.postLabel||e.profile?.post||e.model)}</option>`).join('');
   const notice = (message, error=false) => {$('#ws-notice').innerHTML=`<div class="ws-notice${error?' ws-error':''}">${esc(message)}</div>`;};
   function setView(view) {
-    root.dataset.view=view==='tasks'?'tasks':'office';
+    root.dataset.view=['tasks','discussion'].includes(view)?view:'office';
     for(const b of root.querySelectorAll('[data-view]'))b.setAttribute('aria-pressed',String(b.dataset.view===root.dataset.view));
+    if(data&&view==='discussion'){renderChat();refreshMessages();}
+    if(view==='discussion'&&selected?.startsWith('p:'))history.replaceState(null,'',`#discussion/${selected.slice(2)}`);
   }
   setView('office');
   office.addEventListener('studio-employee',ev=>{
+    const discussing=data?.projects.find(p=>p.discussion?.some(t=>t.employee===ev.detail&&t.status==='running'));
+    if(discussing){selected=`p:${discussing.id}`;setView('discussion');render();return;}
     const jobs=data?.jobs.filter(j=>j.employee===ev.detail)||[];
     const j=jobs.find(j=>j.status==='running')||jobs.find(j=>j.status!=='done')||jobs.at(-1);
     if(j){selected=j.project_id?`p:${j.project_id}`:`o:${j.order_id}`;lastDetail='';setView('tasks');render();}
     else notice(`${person(ev.detail)}当前没有执行中的工作，可以在「新工作」里指定为负责人。`);
   });
+  function renderChat() {
+    const p=data.projects.find(p=>selected===`p:${p.id}`),form=$('#ws-chat-form');
+    if(!p){$('#ws-chat-heading').innerHTML='<h2>项目讨论</h2><p class="muted">选择一个项目，查看员工交流；新建自主协作任务后，真实发言会出现在这里。</p>';form.hidden=true;$('#ws-messages').replaceChildren();$('#ws-chat-running').textContent='';$('#ws-chat-older').hidden=true;chatProject=null;lastChat='';lastChatHeading='';return;}
+    const changed=chatProject!==p.id;
+    if(changed){chatProject=p.id;lastChat='';lastChatHeading='';form.elements.body.value=chatDrafts.get(p.id)||'';form.elements.targetRole.innerHTML=p.roles.map(r=>`<option value="${r.idx}">${esc(person(r.who))} · ${esc(r.name)}</option>`).join('');}
+    form.hidden=false;
+    const c=p.collaboration,failed=(p.discussion||[]).filter(t=>['failed','interrupted'].includes(t.status));
+    const heading=`<h2>${esc(p.name)} · 项目讨论</h2>${badge(p.status)}<p class="muted">${c?.enabled?`自主协作 · 已自动返工 ${c.repairs}/${c.max_repairs} 轮 · 讨论调用上限 ${c.max_turns} 次`:'协作记录 · 可向负责人提问'}${p.tag?` · 已发布 ${esc(p.tag)}`:''}</p>${c?.reason?`<p class="ws-error">${esc(c.reason)}</p>`:''}${failed.map(t=>`<p class="ws-error">${esc(person(t.employee))}：${esc(t.error)} <button class="btn" data-retry-discussion="${t.id}">重试这次讨论</button></p>`).join('')}<div class="ws-actions"><button class="btn" data-view="tasks">查看分工与交付</button>${p.status!=='done'?`<button class="btn" data-pause="${p.id}" data-paused="${p.status!=='paused'}">${p.status==='paused'?'继续执行':'暂停后续步骤'}</button>`:''}</div>`;
+    if(heading!==lastChatHeading){$('#ws-chat-heading').innerHTML=heading;lastChatHeading=heading;}
+    const cache=chatCache.get(p.id),messages=cache?.messages||[];
+    const signature=JSON.stringify(messages);
+    if(signature!==lastChat){
+      const log=$('#ws-messages'),bottom=changed||log.scrollHeight-log.scrollTop-log.clientHeight<70;
+      const kind={request:'任务',message:'消息',discussion:'讨论',question:'提问',revision:'返工要求',delivery:'交付摘要',test_result:'执行结果',release:'发布',notice:'系统记录'};
+      log.innerHTML=messages.length?messages.map(m=>`<article class="ws-message ${m.sender==='system'?'system':m.sender==='boss'?'boss':'employee'}" id="message-${m.id}"><div class="ws-message-meta"><b>${esc(m.sender==='system'?'执行系统':m.sender==='boss'?'你':person(m.sender))}</b><span>→ ${esc(m.recipient==='team'?'全体':m.recipient==='boss'?'你':person(m.recipient))}</span><small>${esc(kind[m.kind]||m.kind)} · ${esc(new Date(m.created_at.replace(' ','T')+'Z').toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}))}</small></div>${m.reply_to?`<a href="#message-${m.reply_to}" class="ws-reply">回复 #${m.reply_to}</a>`:''}<p>${esc(m.body)}</p>${m.meta?.provider?`<small class="muted">${m.meta.provider==='fake'?'测试替身':esc(m.meta.model||m.meta.provider)} · 调用记录 #${m.id}</small>`:''}${m.meta?.artifacts?`<div class="ws-actions">${links(m.meta)}</div>`:''}</article>`).join(''):'<p class="ws-empty">这里还没有讨论记录。旧项目只保留原有交付，新建自主协作任务会从开工讨论开始记录。</p>';
+      if(bottom)log.scrollTop=log.scrollHeight;lastChat=signature;
+    }
+    $('#ws-chat-older').hidden=!cache?.hasOlder;
+    const running=(p.discussion||[]).filter(t=>t.status==='running').map(t=>person(t.employee));
+    $('#ws-chat-running').textContent=running.length?`${running.join('、')} 正在阅读项目材料并回复…`:p.status==='paused'?'项目已暂停。消息会保存，后续调用等待继续执行。':'';
+  }
+  async function refreshMessages(older=false) {
+    if(chatLoading||root.dataset.view!=='discussion'||!chatProject)return;
+    const pid=chatProject,cache=chatCache.get(pid);chatLoading=true;
+    try{
+      const query=older&&cache?.messages.length?`?before=${cache.messages[0].id}`:cache?.messages.length?`?after=${cache.messages.at(-1).id}`:'';
+      const result=await api(`/api/workspace/projects/${pid}/messages${query}`);
+      const messages=[...new Map([...(cache?.messages||[]),...result.messages].map(m=>[m.id,m])).values()].sort((a,b)=>a.id-b.id);
+      chatCache.set(pid,{messages,hasOlder:older||!cache?result.hasOlder:cache.hasOlder});
+      const log=$('#ws-messages'),height=log.scrollHeight,top=log.scrollTop;
+      if(chatProject===pid){renderChat();if(older)log.scrollTop=top+log.scrollHeight-height;}
+    }catch(e){if(chatProject===pid)$('#ws-chat-running').textContent=`讨论记录读取失败：${e.message}`;}finally{chatLoading=false;}
+  }
   function entries() {
     return [...data.projects.map(p=>({id:`p:${p.id}`,title:p.name,status:p.status==='done'||data.jobs.some(j=>j.project_id===p.id)?p.status:'wait',p})), ...data.orders.filter(o=>!data.projects.some(p=>p.order_id===o.id)).map(o=>({id:`o:${o.id}`,title:o.title,status:data.jobs.find(j=>j.order_id===o.id)?.status||o.status,o}))];
   }
@@ -63,7 +104,7 @@ export async function mountWorkspace({ office, models, onSnapshot, avatar }) {
       ${!['running','queued'].includes(j.status)?`<details><summary>修改 / 重试这份分工</summary><form data-revise="${esc(j.id)}"><label><span>具体修改要求（依赖这份交付的后续步骤会重新执行）</span><textarea name="feedback" required placeholder="例如：减号按钮没有响应，请修复并补充测试"></textarea></label><button class="btn" type="submit">提交修改并执行</button></form></details>`:''}</article>`;
   }
   function render() {
-    const all=entries(), visible=all.filter(e=>filter==='all'||(filter==='done'?e.status==='done':e.status!=='done'));
+    const all=entries(), visible=all.filter(e=>e.id===selected||filter==='all'||(filter==='done'?e.status==='done':e.status!=='done'));
     if (!selected) selected=visible[0]?.id||null;
     const status=`v${data.version} · 服务端执行 · 刷新或关闭页面不会停止任务 · 已记录模型费用 ¥${data.spent.toFixed(2)}`;
     if($('#ws-status').textContent!==status)$('#ws-status').textContent=status;
@@ -71,6 +112,7 @@ export async function mountWorkspace({ office, models, onSnapshot, avatar }) {
     const taskHTML=visible.length?visible.map(e=>`<button class="ws-task" data-select="${esc(e.id)}" aria-current="${e.id===selected}"><b>${esc(e.title)}</b>${badge(e.status)}</button>`).join(''):`<p class="ws-empty">${all.length?'没有符合当前筛选的工作。<br>可切换为「全部任务」。':'这里还没有工作。<br>点「新工作」开始。'}</p>`;
     if(taskHTML!==lastTasks){$('#ws-tasks').innerHTML=taskHTML;lastTasks=taskHTML;}
     const entry=all.find(e=>e.id===selected), detail=$('#ws-detail');
+    renderChat();
     const signature=JSON.stringify([entry,data.jobs.filter(j=>entry?.p?j.project_id===entry.p.id:j.order_id===entry?.o?.id),data.employees]);
     const editing=detail.contains(document.activeElement)&&document.activeElement.matches('textarea,input,select');
     if (signature!==lastDetail && !editing) {
@@ -82,6 +124,7 @@ export async function mountWorkspace({ office, models, onSnapshot, avatar }) {
           ${!jobs.length&&p.status!=='done'?`<button class="btn primary" data-start-project="${p.id}">启动这个项目</button>`:''}
           ${jobs.length&&p.status!=='done'?`<button class="btn" data-pause="${p.id}" data-paused="${p.status!=='paused'}">${p.status==='paused'?'继续执行':'暂停后续步骤'}</button>`:''}
           ${p.status==='review'?`<button class="btn primary" data-accept="${p.id}">运行集成检查并验收</button>`:''}
+          <button class="btn" data-view="discussion">查看项目讨论</button>
           <a class="btn" href="/company.html#git/${enc(p.slug)}/main/tree" target="_blank" rel="noopener">项目代码 ↗</a></div>
           ${p.status==='paused'?'<p class="muted">后续步骤已暂停。已经发出的模型调用会完成并保留结果。</p>':''}
           ${p.tag?`<p>已发布 ${esc(p.tag)}</p>`:''}
@@ -99,21 +142,22 @@ export async function mountWorkspace({ office, models, onSnapshot, avatar }) {
         if(box)b.closest('.ws-role').append(box);
       }
     }
-    const teamSignature=JSON.stringify([data.employees,data.jobs.filter(j=>j.status==='running').map(j=>j.employee)]);
+    const conversations=data.projects.flatMap(p=>(p.discussion||[]).filter(t=>t.status==='running'));
+    const teamSignature=JSON.stringify([data.employees,data.jobs.filter(j=>j.status==='running').map(j=>j.employee),conversations]);
     if(teamSignature===lastTeam)return;
     lastTeam=teamSignature;$('#ws-team').replaceChildren();
     for(const e of data.employees) {
       const el=document.createElement('div');el.className='ws-person';el.append(avatar(e));
       const content=document.createElement('div'),running=data.jobs.find(j=>j.employee===e.id&&j.status==='running');
       const provider=models?.providers?.[models?.types?.[e.profile?.type||e.id]];
-      content.innerHTML=`<b>${esc(e.name)}</b><small>${esc(e.profile?.postLabel||e.profile?.post||'通用')} · ${running?'执行中':'可接新任务'}</small><small>${models?.fake?'测试替身':esc(provider?.model||'未接入模型')}</small>`;
+      content.innerHTML=`<b>${esc(e.name)}</b><small>${esc(e.profile?.postLabel||e.profile?.post||'通用')} · ${conversations.some(t=>t.employee===e.id)?'参与项目讨论':running?'执行中':'可接新任务'}</small><small>${models?.fake?'测试替身':esc(provider?.model||'未接入模型')}</small>`;
       el.append(content);$('#ws-team').append(el);
     }
     if(!data.employees.length) $('#ws-team').innerHTML='<p class="ws-empty">先添加一位员工</p>';
   }
   async function refresh() {
     if(busy) return;busy=true;
-    try {data=await api('/api/workspace');onSnapshot(data);render();} catch(e){notice(`连接失败：${e.message}。页面不会重开任务。`,true);} finally{busy=false;}
+    try {data=await api('/api/workspace');onSnapshot(data);render();await refreshMessages();} catch(e){notice(`连接失败：${e.message}。页面不会重开任务。`,true);} finally{busy=false;}
   }
   async function action(button, fn, reload=true) {
     button.disabled=true;
@@ -136,25 +180,30 @@ export async function mountWorkspace({ office, models, onSnapshot, avatar }) {
     const integrator=data.employees.find(e=>e.profile?.post==='test'&&![planner.id,backend.id,frontend.id].includes(e.id))||data.employees.find(e=>['frontend','backend','code'].includes(e.profile?.post)&&![planner.id,backend.id,frontend.id].includes(e.id))||data.employees.find(e=>![planner.id,backend.id,frontend.id].includes(e.id))||tester;
     const orderId=crypto.randomUUID();
     const d=dialog(`<h2>新工作</h2>
-      <label><span>标题</span><input name="title" required maxlength="80" placeholder="例如：做一个极简计数器"></label>
+      <label><span>标题（可留空）</span><input name="title" maxlength="80" placeholder="留空时使用需求的第一行"></label>
       <label><span>要做什么、怎样算完成</span><textarea name="goal" required placeholder="目标、功能、限制和验收标准"></textarea></label>
       <label><span>交付方式</span><select name="kind">
-        <option value="team" selected>多人协作：需求 → 前后端并行 → 集成测试</option>
+        <option value="team" selected>团队协作：讨论 → 分工 → 集成测试</option>
         <option value="code">小型代码：开发 → 测试 → 验收</option>
         <option value="doc">文档：撰写 → 验收</option>
       </select></label>
       <div data-team>
-        <p class="muted">需求确认后，前后端分别开工；两份代码都交付后，由集成测试负责人接手。发现问题可指定分工返工，下游自动重做。</p>
+        <label class="ws-check"><input type="checkbox" name="autonomous" checked><span>员工自主沟通、返工并验收</span></label>
+        <p class="muted">填写任务即可开始。员工先讨论共同约定，再分工执行；测试失败自动转派修复（最多 2 轮）。你可随时旁观、插话或暂停。</p>
+        <details><summary>查看或调整团队成员</summary>
         <label><span>需求规划负责人</span><select name="planner">${optEmployees(planner.id)}</select></label>
         <label><span>后端开发负责人</span><select name="backend">${optEmployees(backend.id)}</select></label>
         <label><span>前端开发负责人</span><select name="frontend">${optEmployees(frontend.id)}</select></label>
         <label><span>集成测试负责人</span><select name="integrator">${optEmployees(integrator.id)}</select></label>
+        </details>
       </div>
       <label data-owner hidden><span>负责人</span><select name="owner">${optEmployees(developer.id)}</select></label>
       <label data-tester hidden><span>代码测试负责人</span><select name="tester">${optEmployees(tester.id)}</select></label>`,async f=>{
+      f.set('title',String(f.get('title')||'').trim()||String(f.get('goal')).trim().split('\n')[0].slice(0,60));
       if(f.get('kind')==='team') {
-        const roles=collaborationRoles({planner:f.get('planner'),backend:f.get('backend'),frontend:f.get('frontend'),tester:f.get('integrator')});
-        const p=await api('/api/projects',{name:f.get('title'),goal:f.get('goal'),roles,workorder:collaborationWorkorder(f.get('title'),f.get('goal'),roles,data.employees)});
+        const autonomous=f.get('autonomous')==='on';
+        const roles=collaborationRoles({planner:f.get('planner'),backend:f.get('backend'),frontend:f.get('frontend'),tester:f.get('integrator'),autonomous});
+        const p=await api('/api/projects',{name:f.get('title'),goal:f.get('goal'),roles,autonomous,workorder:collaborationWorkorder(f.get('title'),f.get('goal'),roles,data.employees)});
         selected=`p:${p.id}`;
       }else if(f.get('kind')==='code') {
         const p=await api('/api/projects',{name:f.get('title'),goal:f.get('goal'),roles:[
@@ -164,7 +213,7 @@ export async function mountWorkspace({ office, models, onSnapshot, avatar }) {
         const id=orderId;await api('/api/orders',{id,title:f.get('title'),brief:f.get('goal'),source:'custom',spec:{detail:f.get('goal'),deliverable:{kind:'doc'}}});
         await api(`/api/workspace/orders/${enc(id)}/start`,{employee:f.get('owner')});selected=`o:${id}`;
       }
-      setView('tasks');
+      setView(f.get('kind')==='team'?'discussion':'tasks');
     });
     d.querySelector('[name=kind]').onchange=e=>{
       d.querySelector('[data-team]').hidden=e.target.value!=='team';
@@ -177,7 +226,8 @@ export async function mountWorkspace({ office, models, onSnapshot, avatar }) {
   root.addEventListener('click',ev=>{
     const b=ev.target.closest('button');if(!b)return;
     if(b.dataset.view)setView(b.dataset.view);
-    if(b.dataset.select){selected=b.dataset.select;lastDetail='';setView('tasks');render();}
+    if(b.dataset.select){selected=b.dataset.select;lastDetail='';setView(root.dataset.view==='discussion'?'discussion':'tasks');render();}
+    if(b.dataset.retryDiscussion)action(b,()=>api(`/api/workspace/discussions/${b.dataset.retryDiscussion}/retry`,{}));
     if(b.dataset.startProject)action(b,()=>api(`/api/workspace/projects/${b.dataset.startProject}/start`,{}));
     if(b.dataset.pause)action(b,()=>api(`/api/workspace/projects/${b.dataset.pause}/pause`,{paused:b.dataset.paused==='true'}));
     if(b.dataset.approve)action(b,()=>api(`/api/workspace/jobs/${enc(b.dataset.approve)}/approve`,{}));
@@ -190,9 +240,18 @@ export async function mountWorkspace({ office, models, onSnapshot, avatar }) {
       const url=`${data.previewBase}/${enc(repo)}/${enc(ref)}/${file.split('/').map(enc).join('/')}`;
       const box=document.createElement('div');box.className='ws-preview';box.innerHTML=`<p class="muted">静态页面预览 · 后端服务需按 README 启动</p><p><a href="${esc(url)}" target="_blank" rel="noopener">在新页打开预览 ↗</a></p><iframe title="交付页面预览" sandbox="allow-scripts allow-same-origin" src="${esc(url)}"></iframe>`;
       previews.set(k,box);
-      b.closest('.ws-role').querySelector('.ws-preview')?.remove();b.closest('.ws-role').append(box);
+      const card=b.closest('.ws-role,.ws-message');card.querySelector('.ws-preview')?.remove();card.append(box);
     },false);
   });
+  $('#ws-chat-older').onclick=()=>refreshMessages(true);
+  $('#ws-chat-form').elements.body.addEventListener('input',e=>{if(chatProject){chatDrafts.set(chatProject,e.target.value);sendIds.delete(chatProject);}});
+  $('#ws-chat-form').onsubmit=async ev=>{
+    ev.preventDefault();const form=ev.target,pid=chatProject;if(!pid)return;
+    const button=form.querySelector('button'),body=form.elements.body.value;button.disabled=true;form.querySelector('.form-error').textContent='';
+    const clientId=sendIds.get(pid)||crypto.randomUUID();sendIds.set(pid,clientId);
+    try{await api(`/api/workspace/projects/${pid}/messages`,{body,targetRole:Number(form.elements.targetRole.value),clientId});chatDrafts.delete(pid);sendIds.delete(pid);if(chatProject===pid&&form.elements.body.value===body)form.elements.body.value='';await refresh();}
+    catch(e){form.querySelector('.form-error').textContent=e.message;}finally{button.disabled=false;}
+  };
   root.addEventListener('input',ev=>{const f=ev.target.closest('form[data-revise]');if(f)drafts.set(f.dataset.revise,f.elements.feedback.value);});
   root.addEventListener('toggle',ev=>{const f=ev.target.querySelector?.('form[data-revise]');if(f){if(ev.target.open)expanded.add(f.dataset.revise);else expanded.delete(f.dataset.revise);}},true);
   root.addEventListener('submit',ev=>{
@@ -202,6 +261,7 @@ export async function mountWorkspace({ office, models, onSnapshot, avatar }) {
       else await api(`/api/workspace/orders/${enc(form.dataset.startOrder)}/start`,{employee:f.get('employee')});
     });
   });
+  const discussionLink=location.hash.match(/^#discussion\/(\d+)$/);if(discussionLink){selected=`p:${discussionLink[1]}`;filter='all';$('#ws-filter').value='all';setView('discussion');}
   await refresh();let timer=setInterval(refresh,2000);
   window.addEventListener('pagehide',()=>clearInterval(timer));
   window.addEventListener('pageshow',e=>{if(e.persisted){refresh();timer=setInterval(refresh,2000);}});
