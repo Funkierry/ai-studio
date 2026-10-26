@@ -15,7 +15,7 @@ export async function mountWorkspace({ office, models, onSnapshot, avatar }) {
   root.innerHTML=`<header class="ws-top px"><div class="intro"><h1>AI 工作室</h1><p class="muted" id="ws-status">正在连接执行服务…</p></div><button class="btn primary" id="ws-create">＋ 新工作</button><button class="btn" id="ws-hire">添加员工</button><a class="btn" href="/company.html" target="_blank" rel="noopener">文件与记录 ↗</a></header>
     <nav class="ws-views" aria-label="工作区视图"><button class="btn" data-view="office" aria-pressed="true">像素工作室</button><button class="btn" data-view="tasks" aria-pressed="false">任务工作台</button></nav>
     <div id="ws-notice" role="status"></div><div class="ws-grid">
-    <section class="ws-office"><div id="ws-office"></div><p class="muted">点击小人查看工作，点击右侧任务查看交付。代码库和文档库仍在办公室里。</p></section>
+    <section class="ws-office"><div id="ws-office"></div><p class="muted">点击小人查看工作，点击右侧任务查看交付。代码库和文档库仍在办公室里。 <a href="/character-preview.html" target="_blank" rel="noopener">角色动作预览 ↗</a></p></section>
     <section class="ws-panel ws-list"><h2>工作</h2><label><span>显示</span><select id="ws-filter"><option value="active">正在进行</option><option value="all">全部任务</option><option value="done">已完成</option></select></label><div id="ws-tasks" class="ws-tasks"></div></section>
     <section class="ws-panel" id="ws-detail" aria-label="任务详情"></section><aside class="ws-panel ws-team"><h2>员工</h2><p class="muted">只在真实调用期间占用员工</p><div id="ws-team"></div></aside></div>
     <dialog id="ws-dialog"></dialog>`;

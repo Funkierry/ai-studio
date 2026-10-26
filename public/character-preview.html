@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DeepSeek 娘 · 动作预览</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#1b1824;color:#eee8f5}
+*{box-sizing:border-box}body{margin:0;padding:40px 20px}main{max-width:1040px;margin:auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:28px}
+h1{font-size:26px;margin:0 0 12px}p{color:#b3aabe;line-height:1.7;margin:0}
+a{color:#f2b544;text-decoration:none}a:hover{text-decoration:underline}
+.gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+article{background:#272233;border:1px solid #484057;border-radius:16px;padding:24px;text-align:center}
+h2{font-size:18px;margin:0 0 4px}article p{font-size:13px}
+canvas{display:block;width:240px;height:264px;max-width:100%;object-fit:contain;margin:20px auto 8px}
+footer{display:flex;gap:18px;align-items:center;justify-content:center;margin-top:28px}
+button{font:inherit;background:#f2b544;color:#241b13;border:0;border-radius:8px;padding:10px 22px;cursor:pointer}
+button:focus-visible,a:focus-visible{outline:3px solid #8ec5ff;outline-offset:4px}
+#status{font-size:13px;color:#b3aabe}
+@media(max-width:720px){.gallery{grid-template-columns:1fr}body{padding:24px 16px}}
+</style>
+</head>
+<body><main>
+<header><div><h1>DeepSeek 娘 · 动作预览</h1><p>看看她休息、走路和工作时的样子。</p></div><a href="/">← 返回工作室</a></header>
+<section class="gallery" aria-label="角色动作">
+<article><h2>休息</h2><p>眨眨眼，轻轻晃动发梢</p><canvas width="480" height="528" role="img" aria-label="休息和眨眼动画" data-pose="idle"></canvas></article>
+<article><h2>走路</h2><p>交替迈步，摆动双臂</p><canvas width="480" height="528" role="img" aria-label="走路动画" data-pose="walk"></canvas></article>
+<article><h2>工作</h2><p>专心打字，轮流敲动双手</p><canvas width="480" height="528" role="img" aria-label="打字动画" data-pose="work"></canvas></article>
+</section>
+<footer><button id="toggle" disabled>暂停动画</button><span id="status" role="status">正在加载动作…</span></footer>
+</main>
+<script type="module">
+import {characterFrame,loadCharacterFrames} from './character-animation.js';
+const toggle=document.querySelector('#toggle'),status=document.querySelector('#status');
+const reduce=window.matchMedia('(prefers-reduced-motion: reduce)');
+let running=!reduce.matches,elapsed=0,last=performance.now();
+const showStatus=()=>{toggle.textContent=running?'暂停动画':'播放动画';status.textContent=running?'动画播放中':'动画已暂停';};
+toggle.addEventListener('click',()=>{running=!running;showStatus();});
+try{
+  const frames=await loadCharacterFrames();
+  const items=[...document.querySelectorAll('canvas')].map(canvas=>({canvas,context:canvas.getContext('2d'),who:{name:'',path:canvas.dataset.pose==='walk'?[{}]:[],writing:canvas.dataset.pose==='work'?{}:null}}));
+  toggle.disabled=false;showStatus();
+  function draw(now){
+    if(running)elapsed+=Math.min(.1,(now-last)/1000);last=now;
+    for(const {canvas,context,who} of items){
+      context.clearRect(0,0,canvas.width,canvas.height);context.imageSmoothingEnabled=true;context.imageSmoothingQuality='high';
+      context.drawImage(frames[characterFrame(who,elapsed)],0,0,canvas.width,canvas.height);
+    }
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+}catch(error){status.textContent='动画加载失败，请刷新重试。';console.error(error);}
+</script>
+</body></html>

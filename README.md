@@ -71,7 +71,9 @@ node server.js
 
 Claude 等员工保留不同服装配色；DeepSeek 员工统一使用这次生成的蓝白女仆形象，通过名字区分。
 
-DeepSeek 员工在办公室和头像中共用 `public/assets/deepseek-girl-detailed.png`：这是本次对话此前生成的五官更细致的蓝发眼镜女仆形象，原始 PNG 保持不变。工作室保留 384×224 的场景坐标，画布按显示尺寸和屏幕密度提高分辨率；人物高约 30 个场景单位，以平滑缩放保留眼镜和五官。走路时头部稳定、双脚轻轻交替运动，保留打字、拿文件和轻微呼吸。原小像素素材 `public/assets/deepseek-girl.png` 仍保留。
+DeepSeek 员工在办公室和头像中共用 `public/assets/deepseek-girl-animations.png` 的 12 帧动作：休息眨眼与轻摆发梢、走路迈步摆臂、工作时双手交替打字。`public/character-animation.js` 负责帧裁切对齐和状态选择；走向工位时先播放走路，到达后切换打字。动作只展示状态，不启动模型调用。工作室保留 384×224 的场景坐标，画布按显示尺寸和屏幕密度提高分辨率，人物高约 30 个场景单位；系统开启减少动态效果时显示对应状态的静止帧。
+
+工作室下方的「角色动作预览」打开 http://localhost:5300/character-preview.html，可查看三组动画并暂停/继续播放。动作图由内置 imagegen 根据此前的细致版形象生成，提示词见 `public/assets/deepseek-animation-source.txt`。原图 `public/assets/deepseek-girl-detailed.png` 保留为加载失败时的回退素材；小像素版 `public/assets/deepseek-girl.png` 也仍保留。
 
 鲸鱼娘的配色和特征参考 [Neko3000/deepseek-whalechan](https://github.com/Neko3000/deepseek-whalechan) 的设定图，角色形象归原作者 ZipZipPipe 和上善无形所有。这里的像素版是非商业的同人二创；如果要商用，需要先取得原作者授权。
 
