@@ -69,9 +69,9 @@ node server.js
 | Gemini娘 | 蓝紫双色头发、双发髻、星星发饰（按 logo 设计） | 博览群书、爱列表格 |
 | Codex娘 | 黑发绿眼、眼镜、小龙角、连帽衫（按 logo 设计） | 话少手快、机房常驻 |
 
-Claude 等员工保留不同服装配色；DeepSeek 员工统一使用这次生成的蓝白女仆像素形象，通过名字区分。
+Claude 等员工保留不同服装配色；DeepSeek 员工统一使用这次生成的蓝白女仆形象，通过名字区分。
 
-DeepSeek 员工在办公室和头像中共用 `public/assets/deepseek-girl.png`：这是本次对话生成的、更小的蓝发眼镜女仆形象。原图保持不变，显示时裁掉透明留白并按最近邻缩小；办公室角色约 17×24 逻辑像素，支持走路、打字、拿文件、呼吸、眨眼和等待动作。
+DeepSeek 员工在办公室和头像中共用 `public/assets/deepseek-girl-detailed.png`：这是本次对话此前生成的五官更细致的蓝发眼镜女仆形象，原始 PNG 保持不变。工作室保留 384×224 的场景坐标，画布按显示尺寸和屏幕密度提高分辨率；人物高约 30 个场景单位，以平滑缩放保留眼镜和五官。走路时头部稳定、双脚轻轻交替运动，保留打字、拿文件和轻微呼吸。原小像素素材 `public/assets/deepseek-girl.png` 仍保留。
 
 鲸鱼娘的配色和特征参考 [Neko3000/deepseek-whalechan](https://github.com/Neko3000/deepseek-whalechan) 的设定图，角色形象归原作者 ZipZipPipe 和上善无形所有。这里的像素版是非商业的同人二创；如果要商用，需要先取得原作者授权。
 

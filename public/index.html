@@ -77,6 +77,7 @@ a.btn{display:inline-block;color:var(--text);text-decoration:none}
 .stage-wrap{padding:6px;position:relative}
 .stage{position:relative;width:100%;aspect-ratio:384/224;max-width:100%;background:#57506a}
 .stage canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:manipulation}
+#cv{image-rendering:auto}
 .overlay{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .room-label{position:absolute;font-size:clamp(8px,1.15vw,11px);padding:1px 5px;background:rgba(27,24,36,.72);color:var(--text);white-space:nowrap;letter-spacing:.06em}
 .room-label.locked{color:var(--accent)}
@@ -264,7 +265,7 @@ a.btn{display:inline-block;color:var(--text);text-decoration:none}
 .order-form .chk{display:flex;gap:8px;align-items:center;font-size:13px}
 .plan-text{white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);padding:8px;font:inherit;font-size:13px;max-height:260px;overflow:auto;margin:0}
 .portrait{image-rendering:pixelated;image-rendering:crisp-edges;display:block;background:var(--bg);border:2px solid var(--line)}
-.portrait.art{border-color:transparent;background:none}
+.portrait.art{image-rendering:auto;border-color:transparent;background:none}
 .pslot{flex:none;display:block}
 .cand h4{gap:10px}
 .cand h4 small{display:block;font-size:12px;font-weight:400;color:var(--muted)}
@@ -1292,6 +1293,17 @@ function updateJob(j,s){
 
 /* ---------- drawing ---------- */
 const cv=$('#cv'),ctx=cv.getContext('2d');
+// Keep room coordinates unchanged; use enough screen pixels to retain facial detail.
+let sceneScale=1;
+function resizeScene(){
+  const width=cv.getBoundingClientRect().width;
+  if(!width)return;
+  const scale=Math.max(2,Math.min(6,Math.ceil(width*(window.devicePixelRatio||1)/W)));
+  if(scale===sceneScale)return;
+  sceneScale=scale;cv.width=W*scale;cv.height=H*scale;
+}
+new ResizeObserver(resizeScene).observe(cv);
+window.addEventListener('resize',resizeScene);
 const bg=document.createElement('canvas');bg.width=W;bg.height=H;
 let T=0;
 function R(c,col,x,y,w,h){c.fillStyle=col;c.fillRect(x,y,w,h)}
@@ -1500,65 +1512,66 @@ function portraitEl(look,outfit,size=64){
 }
 /* ---------- generated DeepSeek sprite, shared by the office and portraits ---------- */
 // Keep the original PNG intact. Its transparent margin is cropped only while rendering.
-const ART={deepseek:{generated:true,w:43,h:60,ahoge:4,legs:50,lenses:[[14,29],[24,29]],head:[6,3,32,32],
-  crop:[338,268,578,812],src:'/assets/deepseek-girl.png'}};
+const ART_SCALE=4;
+const ART={deepseek:{generated:true,w:43,h:62,legs:52,head:[6,4,32,32],officeHeight:30,
+  crop:[51,0,999,1440],src:'/assets/deepseek-girl-detailed.png'}};
 for(const a of Object.values(ART)){
   const source=new Image();
   source.onload=()=>{
-    a.img=document.createElement('canvas');a.img.width=a.w;a.img.height=a.h;
-    const c=a.img.getContext('2d');c.imageSmoothingEnabled=false;
-    c.drawImage(source,...a.crop,0,0,a.w,a.h);
+    a.img=document.createElement('canvas');a.img.width=a.w*ART_SCALE;a.img.height=a.h*ART_SCALE;
+    const c=a.img.getContext('2d');c.imageSmoothingEnabled=true;c.imageSmoothingQuality='high';
+    c.drawImage(source,...a.crop,0,0,a.img.width,a.img.height);
     a.ready=true;dirty();
   };
   source.src=a.src;
 }
 const artOf=(type,variant)=>{const a=ART[type];return a&&(a.generated||variant%TYPES[type].outfits.length===a.variant)?a:null;};
 const artEls=new Set();
-// a canvas with the art: the full figure (with room above for a hop) or just the head; who: the employee whose mood drives it
+// Full figure or head portrait, retaining detail at its displayed size.
 function artEl(a,scale,who,headOnly){
   const cv=document.createElement('canvas'),[,,hw,hh]=a.head;
-  cv.width=headOnly?hw:a.w;cv.height=headOnly?hh:a.h+3;cv.className='portrait art';
-  cv.style.width=cv.width*scale+'px';cv.style.height=cv.height*scale+'px';
-  cv._art={a,who,headOnly};artEls.add(cv);paintArt(cv,performance.now()/1000);
+  const w=headOnly?hw:a.w,h=headOnly?hh:a.h+3;
+  const resolution=Math.max(ART_SCALE,Math.ceil(scale*(window.devicePixelRatio||1)));
+  cv.width=w*resolution;cv.height=h*resolution;cv.className='portrait art';
+  cv.style.width=w*scale+'px';cv.style.height=h*scale+'px';
+  cv._art={a,who,headOnly,resolution};artEls.add(cv);paintArt(cv,performance.now()/1000);
   return cv;
 }
 function paintArt(cv,t){
-  const {a,who,headOnly}=cv._art,c=cv.getContext('2d');
-  c.clearRect(0,0,cv.width,cv.height);
+  const {a,who,headOnly,resolution}=cv._art,c=cv.getContext('2d');
+  c.setTransform(resolution,0,0,resolution,0,0);
+  c.clearRect(0,0,cv.width/resolution,cv.height/resolution);
   if(!a.ready) return;
+  c.imageSmoothingEnabled=true;c.imageSmoothingQuality='high';
   const seed=who?who.name.length*.37:0,working=who&&(who.writing||(who.job&&who.job.phase==='run'));
-  // breathing (quicker while working), ahoge swaying, a blink every few seconds, and little hops while waiting on the boss
-  const breath=Math.floor(t*(working?2.8:1.2)+seed)%2,sway=[0,1,0,-1][Math.floor(t*1.5+seed)%4];
-  const walking=!headOnly&&who?.path.length>0,step=Math.floor(t*7)%2;
-  const blink=(t+seed)%3.7<.15,hop=walking?(step?2:0):!headOnly&&who&&who.waiting?[0,2,3,2,0,0,0,0][Math.floor(t*12)%8]:0;
-  const ox=headOnly?-a.head[0]:0,oy=headOnly?-a.head[1]:3-hop;
+  const walking=!headOnly&&who?.path.length>0;
+  // Feet step independently. Keep the face steady, with no coarse blink overlay.
+  const breath=walking||headOnly?0:Math.sin(t*(working?2.2:1.6)+seed)*.22;
+  const ox=headOnly?-a.head[0]:0,oy=headOnly?-a.head[1]:3;
+  const part=(sx,sy,w,h,dx,dy)=>c.drawImage(a.img,sx*ART_SCALE,sy*ART_SCALE,w*ART_SCALE,h*ART_SCALE,dx,dy,w,h);
   if(walking){
-    const half=Math.floor(a.w/2),h=a.h-a.legs;
-    c.drawImage(a.img,0,a.legs,half,h,ox,oy+a.legs+(step?-2:0),half,h);
-    c.drawImage(a.img,half,a.legs,a.w-half,h,ox+half,oy+a.legs+(step?0:-2),a.w-half,h);
-  }else c.drawImage(a.img,0,a.legs,a.w,a.h-a.legs,ox,oy+a.legs,a.w,a.h-a.legs);
-  c.drawImage(a.img,0,a.ahoge,a.w,a.legs-a.ahoge,ox,oy+a.ahoge+breath,a.w,a.legs-a.ahoge);
-  c.drawImage(a.img,0,0,a.w,a.ahoge,ox+sway,oy+breath,a.w,a.ahoge);
-  if(blink) for(const [lx,ly] of a.lenses){
-    c.fillStyle='#fcdece';c.fillRect(ox+lx,oy+ly+breath,5,4);
-    c.fillStyle='#081350';c.fillRect(ox+lx,oy+ly+2+breath,5,1);
-  }
+    const half=a.w/2,h=a.h-a.legs,step=Math.sin(t*9);
+    part(0,a.legs,half,h,ox,oy+a.legs-Math.max(0,step)*1.4);
+    part(half,a.legs,half,h,ox+half,oy+a.legs-Math.max(0,-step)*1.4);
+  }else part(0,a.legs,a.w,a.h-a.legs,ox,oy+a.legs);
+  part(0,0,a.w,a.legs,ox,oy+breath);
 }
 function drawArtPerson(e,a){
   if(!e.officeArt){
-    e.officeArt=document.createElement('canvas');e.officeArt.width=a.w;e.officeArt.height=a.h+3;
-    e.officeArt._art={a,who:e,headOnly:false};
+    e.officeArt=document.createElement('canvas');e.officeArt.width=a.w*ART_SCALE;e.officeArt.height=(a.h+3)*ART_SCALE;
+    e.officeArt._art={a,who:e,headOnly:false,resolution:ART_SCALE};
   }
   paintArt(e.officeArt,e.anim);
-  const w=17,h=24,x=Math.round(e.x)-8,y=Math.round(e.y)-h;
-  ctx.fillStyle='rgba(0,0,0,.28)';ctx.fillRect(x+3,Math.round(e.y)-1,11,2);
-  ctx.imageSmoothingEnabled=false;
+  const h=a.officeHeight,w=a.w/(a.h+3)*h,x=e.x-w/2,y=e.y-h;
+  ctx.fillStyle='rgba(0,0,0,.28)';ctx.fillRect(e.x-5,e.y-1,10,2);
+  ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
   ctx.drawImage(e.officeArt,x,y,w,h);
+  ctx.restore();
   if(e.writing&&!e.path.length){
-    const tap=Math.floor(e.anim*6)%2;
-    R(ctx,'#f8dfcb',x+6,y+17+tap,2,1);R(ctx,'#f8dfcb',x+10,y+18-tap,2,1);
+    const tap=Math.sin(e.anim*12)*.3;
+    R(ctx,'#f8dfcb',x+w*.46,y+h*.64+tap,1,.6);R(ctx,'#f8dfcb',x+w*.56,y+h*.64-tap,1,.6);
   }
-  if(e.carry){R(ctx,'#efe9dc',x+13,y+15,4,5);R(ctx,'#c3a6ea',x+13,y+15,4,1);}
+  if(e.carry){R(ctx,'#efe9dc',x+w-4,y+h*.65,4,5);R(ctx,'#c3a6ea',x+w-4,y+h*.65,4,1);}
   if(state.selected===e)R(ctx,'#f2b544',x,Math.round(e.y)+1,w,1);
   if(state.dropHover===e.id){ctx.strokeStyle='#f2b544';ctx.lineWidth=1;ctx.strokeRect(x-1.5,y-1.5,w+3,h+3);}
 }
@@ -1569,6 +1582,7 @@ function avatarEl(e,size,full){
   return full?artEl(a,2,e,false):artEl(a,size/a.head[2],e,true);
 }
 function draw(){
+  ctx.setTransform(sceneScale,0,0,sceneScale,0,0);
   ctx.imageSmoothingEnabled=false;
   ctx.drawImage(bg,0,0);
   // work wall: one paper per delivery
@@ -1641,7 +1655,7 @@ function syncOverlay(){
   const placed=[];
   for(const e of state.emps){
     const t=e.tagEl,b=e.bubEl;
-    const height=artOf(e.type,e.variant)?.ready?27:21;
+    const art=artOf(e.type,e.variant),height=art?.ready?art.officeHeight+3:21;
     t.style.left=pct(e.x,W);t.style.top=pct(e.y-height,H);
     t.classList.toggle('sel',state.selected===e);
     const [ic,cls]=statusIcon(e),st=t.firstChild;
@@ -1667,8 +1681,9 @@ function toLocal(cx,cy){
 function empAt(p){
   let hit=null;
   for(const e of state.emps){
-    const h=artOf(e.type,e.variant)?.ready?25:22;
-    if(Math.abs(p.x-e.x)<=9&&p.y>=e.y-h&&p.y<=e.y+3&&(!hit||e.y>hit.y))hit=e;
+    const art=artOf(e.type,e.variant),h=art?.ready?art.officeHeight+1:22;
+    const halfWidth=art?.ready?art.w/(art.h+3)*art.officeHeight/2+1:9;
+    if(Math.abs(p.x-e.x)<=halfWidth&&p.y>=e.y-h&&p.y<=e.y+3&&(!hit||e.y>hit.y))hit=e;
   }
   return hit;
 }
