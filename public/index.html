@@ -1079,8 +1079,16 @@ function toReview(j){
   placeQueue();renderQueue();dirty();
 }
 // stars 0 with auto: accepted without the boss looking (放手); it doesn't count toward the average rating
-function acceptReview(item,stars,auto){
-  if(!state.queue.includes(item)) return;
+async function acceptReview(item,stars,auto){
+  if(!state.queue.includes(item)||item.accepting) return;
+  const project=item.job.project;
+  let accepted=null;
+  if(project?.sid){
+    item.accepting=true;
+    accepted=await API.post(`/api/projects/${project.sid}/review`,{stars,decisions:item.job.decisions});
+    item.accepting=false;
+    if(!accepted){renderQueue();return;}
+  }
   state.queue=state.queue.filter(q=>q!==item);
   const j=item.job,lead=j.members[0];
   state.jobs=state.jobs.filter(x=>x!==j);
@@ -1096,7 +1104,7 @@ function acceptReview(item,stars,auto){
   say(lead,auto?'交付完成，已归档':stars===3?'太好了！':stars===2?'收到，下次争取三星':'明白，我再琢磨琢磨');
   people.forEach(m=>{addLog(m,{kind:auto?'sys':'boss',text:auto?`自动验收（放手）：${d.title}`:`验收通过 ${'★'.repeat(stars)}：${d.title}`});gainXp(m,Math.max(1,stars));});
   if(j.project){
-    if(j.project.sid) API.post(`/api/projects/${j.project.sid}/review`,{stars,decisions:j.decisions}).then(r=>{if(r){logArtifacts(lead,r.artifacts);toast('项目已合并发布，总结存入文档库','ok');}});
+    if(accepted){logArtifacts(lead,accepted.artifacts);toast('项目已通过验证并发布，总结存入文档库','ok');}
   }else{
     API.post('/api/deliverables',{title:d.title,body:d.body,people:j.members.map(m=>m.id),mode:j.origMode,mode_label:MODE_LABEL[j.origMode],stars,
       reworks:j.reworks,cost:j.cost,decisions:j.decisions,transcript:j.transcript,order_id:j.task.id,doc:j.result?.doc||null})
