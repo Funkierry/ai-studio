@@ -263,6 +263,7 @@ a.btn{display:inline-block;color:var(--text);text-decoration:none}
 .order-form .chk{display:flex;gap:8px;align-items:center;font-size:13px}
 .plan-text{white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);padding:8px;font:inherit;font-size:13px;max-height:260px;overflow:auto;margin:0}
 .portrait{image-rendering:pixelated;image-rendering:crisp-edges;display:block;background:var(--bg);border:2px solid var(--line)}
+.portrait.art{border-color:transparent;background:none}
 .pslot{flex:none;display:block}
 .cand h4{gap:10px}
 .cand h4 small{display:block;font-size:12px;font-weight:400;color:var(--muted)}
@@ -515,8 +516,8 @@ const TYPES={
   deepseek:{model:'DeepSeek',nick:'DeepSeek娘',names:['阿深','深深','鲸鲸','小蓝'],traits:['元气可爱','饭量无底','有点傲娇','没电就摸鱼'],speed:3,memory:3,price:0.03,
     pitch:'先给我一碗白饭，推理马上开始！',
     look:{hair:'#4d62b0',hairShade:'#314384',hairLight:'#7089d8',eyes:'#3f78e0',skin:'#fbf1ea',style:'long',
-      fin:'#e6edf7',finEdge:'#9fb0d6',tail:'#1d2d60',tailBelly:'#8a97bd',acc:['elfFins','ahoge','maidCap','whaleTail']},
-    outfits:[{dress:'#1d2d60',trim:'#ffffff',maid:true,bow:'#749ce0',legs:'#f4f4f8',shoes:'#302e37'},
+      fin:'#e6edf7',finEdge:'#9fb0d6',tail:'#1d2d60',tailBelly:'#8a97bd',acc:['elfFins','ahoge','maidCap','whaleTail','glasses','whaleClip']},
+    outfits:[{dress:'#1d2d60',trim:'#ffffff',maid:true,bow:'#749ce0',legs:'#f4f4f8',stripes:'#749ce0',shoes:'#081350'},
       {dress:'#1d2d60',trim:'#749ce0',collar:'#ffffff',legs:'#f4f4f8',shoes:'#302e37'},
       {dress:'#9fc4ef',trim:'#ffffff',collar:'#ffffff',legs:'#f4f4f8',shoes:'#ffffff'}]},
   gemini:{model:'Gemini',nick:'Gemini娘',names:['双子','小双','星河'],traits:['博览群书','爱列表格','一心二用'],speed:4,memory:5,price:0.08,
@@ -1380,6 +1381,7 @@ function drawPerson(e){
   // legs, dress, arms
   R(ctx,O.legs,x+4,y+15,2,f?2:3);R(ctx,O.legs,x+6,y+15,2,f?3:2);
   R(ctx,O.shoes||'#3a2a2a',x+4,y+17-(f?1:0),2,1);R(ctx,O.shoes||'#3a2a2a',x+6,y+17-(f?0:1),2,1);
+  if(O.stripes) R(ctx,O.stripes,x+4,y+15,4,1);
   R(ctx,O.dress,x+3,y+9,6,3);R(ctx,O.dress,x+2,y+12,8,3);R(ctx,O.trim,x+2,y+14,8,1);
   if(O.apron){R(ctx,'#ffffff',x+4,y+10,4,4);R(ctx,'#ffffff',x+5,y+9,2,1);}
   if(O.maid){R(ctx,'#ffffff',x+4,y+11,4,3);R(ctx,'#ffffff',x+5,y+10,2,1);R(ctx,O.bow,x+5,y+12,2,1);R(ctx,O.bow,x+5,y+9,2,1);}
@@ -1418,6 +1420,7 @@ function drawPerson(e){
     R(ctx,L.fin,x+10,y+4,2,2);R(ctx,L.fin,x+12,y+3,1,1);R(ctx,L.fin,x+13,y+2,1,1);R(ctx,L.finEdge,x+10,y+5,2,1);
   }
   if(has('star')){R(ctx,'#ffd76a',x+9,y,1,3);R(ctx,'#ffd76a',x+8,y+1,3,1);}
+  if(has('whaleClip')){R(ctx,'#62a7f9',x+8,y+3,2,1);R(ctx,'#62a7f9',x+9,y+2,1,1);}
   if(state.dropHover===e.id){ctx.strokeStyle='#f2b544';ctx.lineWidth=1;ctx.strokeRect(x-1.5,y-2.5,15,22);}
 }
 // bust portrait for the staff panel and hiring cards
@@ -1467,6 +1470,7 @@ function drawPortrait(cv,L,O){
   if(has('orangeFlower')){r(22,2,4,8,'#ff7a1a');r(20,4,8,4,'#ff7a1a');r(21,3,6,6,'#ff9440');r(23,5,2,2,'#ffd24a');}
   if(has('blackRibbon')){r(26,8,3,2,'#2a1c1c');r(27,10,2,4,'#2a1c1c');r(27,14,2,2,'#d6ae46');r(28,16,1,2,'#d6ae46');}
   if(has('star')){r(23,2,1,7,'#ffd76a');r(20,5,7,1,'#ffd76a');r(22,4,3,3,'#ffd76a');}
+  if(has('whaleClip')){r(20,8,5,2,'#62a7f9');r(24,6,2,2,'#62a7f9');r(21,8,1,1,'#081350');r(20,10,4,1,'#ffffff');}
   if(has('maidCap')){r(9,4,14,2,'#ffffff');for(const sx of [9,12,15,18,21]) r(sx,3,2,1,'#ffffff');r(9,6,14,1,'#dde3ef');}
   if(has('ahoge')){r(16,1,1,4,L.hair);r(17,0,2,1,L.hair);}
   if(has('elfFins')){
@@ -1481,6 +1485,45 @@ function drawPortrait(cv,L,O){
 function portraitEl(look,outfit,size=64){
   const cv=document.createElement('canvas');cv.width=32;cv.height=32;cv.className='portrait';
   cv.style.width=cv.style.height=size+'px';drawPortrait(cv,look,outfit);return cv;
+}
+/* ---------- the boss's own pixel art for a kind of employee, brought to life ---------- */
+// DeepSeek娘 in the maid outfit, drawn by the boss (43×60). Marked parts: rows above `ahoge` sway, rows above `legs` breathe,
+// the two lenses blink, `head` is the crop used in small lists.
+const ART={deepseek:{variant:0,w:43,h:60,ahoge:4,legs:50,lenses:[[14,29],[24,29]],head:[6,3,32,32],
+  src:'data:image/png;base64,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'}};
+for(const a of Object.values(ART)){a.img=new Image();a.img.onload=()=>{a.ready=true;dirty();};a.img.src=a.src;}
+const artOf=(type,variant)=>{const a=ART[type];return a&&variant%TYPES[type].outfits.length===a.variant?a:null;};
+const artEls=new Set();
+// a canvas with the art: the full figure (with room above for a hop) or just the head; who: the employee whose mood drives it
+function artEl(a,scale,who,headOnly){
+  const cv=document.createElement('canvas'),[,,hw,hh]=a.head;
+  cv.width=headOnly?hw:a.w;cv.height=headOnly?hh:a.h+3;cv.className='portrait art';
+  cv.style.width=cv.width*scale+'px';cv.style.height=cv.height*scale+'px';
+  cv._art={a,who,headOnly};artEls.add(cv);paintArt(cv,performance.now()/1000);
+  return cv;
+}
+function paintArt(cv,t){
+  const {a,who,headOnly}=cv._art,c=cv.getContext('2d');
+  c.clearRect(0,0,cv.width,cv.height);
+  if(!a.ready) return;
+  const seed=who?who.name.length*.37:0,working=who&&(who.writing||(who.job&&who.job.phase==='run'));
+  // breathing (quicker while working), ahoge swaying, a blink every few seconds, and little hops while waiting on the boss
+  const breath=Math.floor(t*(working?2.8:1.2)+seed)%2,sway=[0,1,0,-1][Math.floor(t*1.5+seed)%4];
+  const blink=(t+seed)%3.7<.15,hop=!headOnly&&who&&who.waiting?[0,2,3,2,0,0,0,0][Math.floor(t*12)%8]:0;
+  const ox=headOnly?-a.head[0]:0,oy=headOnly?-a.head[1]:3-hop;
+  c.drawImage(a.img,0,a.legs,a.w,a.h-a.legs,ox,oy+a.legs,a.w,a.h-a.legs);
+  c.drawImage(a.img,0,a.ahoge,a.w,a.legs-a.ahoge,ox,oy+a.ahoge+breath,a.w,a.legs-a.ahoge);
+  c.drawImage(a.img,0,0,a.w,a.ahoge,ox+sway,oy+breath,a.w,a.ahoge);
+  if(blink) for(const [lx,ly] of a.lenses){
+    c.fillStyle='#fcdece';c.fillRect(ox+lx,oy+ly+breath,5,4);
+    c.fillStyle='#081350';c.fillRect(ox+lx,oy+ly+2+breath,5,1);
+  }
+}
+// an employee's picture: the boss's art when there is one for them, otherwise the drawn portrait
+function avatarEl(e,size,full){
+  const a=artOf(e.type,e.variant);
+  if(!a) return portraitEl(e.look,e.outfit,size);
+  return full?artEl(a,2,e,false):artEl(a,size/a.head[2],e,true);
 }
 function draw(){
   ctx.imageSmoothingEnabled=false;
@@ -1939,7 +1982,7 @@ function renderStaff(){
     return `<div><span class="sw" style="background:${o.shirt}"></span>${esc(o.name)}<span class="pips">${pips(Math.min(5,Math.ceil(n/2)))}</span><small>合作 ${n} 次</small></div>`}).join('')}</div>`:''}
   </details></div>`;
   box.innerHTML=h;bindChips(box);fillRoster(box);
-  box.querySelector('.pslot.big').appendChild(portraitEl(e.look,e.outfit,64));
+  box.querySelector('.pslot.big').appendChild(avatarEl(e,64,true));
   const log=box.querySelector('.log');
   if(atBottom) log.scrollTop=log.scrollHeight;else if(oldLog) log.scrollTop=oldLog.scrollTop;
   $('#postSel').onchange=ev=>{
@@ -1967,7 +2010,7 @@ function renderStaff(){
     addLog(e,{kind:'sys',text:`专长更新为：${e.persona||'（空）'}`});renderStaff();
   };
 }
-function fillRoster(box){box.querySelectorAll('.roster .pslot').forEach((sl,i)=>{const x=state.emps[i];sl.appendChild(portraitEl(x.look,x.outfit,32));});}
+function fillRoster(box){box.querySelectorAll('.roster .pslot').forEach((sl,i)=>sl.appendChild(avatarEl(state.emps[i],32)));}
 function bindChips(box){box.querySelectorAll('.mate').forEach(c=>c.onclick=()=>select(state.emps.find(x=>x.id===c.dataset.id)));}
 function renderWall(){
   $('#wallCount').textContent=state.wall.length?`（${state.wall.length}）`:'';
@@ -2047,7 +2090,10 @@ $('#hireBtn').onclick=()=>{
   <div class="row-btns"><button class="btn" id="closeModal">关闭</button></div>`;
   openModal(html);
   // show the outfit the next hire of each kind will wear
-  card.querySelectorAll('.pslot[data-type]').forEach(s=>{const d=TYPES[s.dataset.type];s.appendChild(portraitEl(d.look,d.outfits[+s.dataset.variant%d.outfits.length],56));});
+  card.querySelectorAll('.pslot[data-type]').forEach(s=>{
+    const type=s.dataset.type,v=+s.dataset.variant,d=TYPES[type],a=artOf(type,v);
+    s.appendChild(a?artEl(a,1,null,false):portraitEl(d.look,d.outfits[v%d.outfits.length],56));
+  });
   card.querySelectorAll('[data-hire]').forEach(b=>b.onclick=()=>{
     const type=b.dataset.hire,name=card.querySelector(`[data-name="${type}"]`).value.trim();
     if(name&&state.emps.some(e=>e.name===name)){toast(`已经有人叫「${name}」了，换个名字。`,'warn');return;}
@@ -2416,6 +2462,8 @@ setInterval(()=>{
 },40);
 function frame(){
   draw();syncOverlay();
+  const t=performance.now()/1000;
+  for(const cv of artEls){if(cv.isConnected) paintArt(cv,t);else artEls.delete(cv);}
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
