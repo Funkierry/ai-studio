@@ -473,28 +473,32 @@ function route(a,b){return [...a.exit,{x:a.cx,y:CY},{x:b.cx,y:CY},...[...b.exit]
 /* ---------- staff ---------- */
 // kinds of AI you can hire; every hire of a kind is a separate person (own name, preferences, experience) on that kind's model
 // Looks follow the AI-girl characters popular on the Chinese internet (fan creations, not official mascots):
-// DeepSeek娘 the blue-haired whale maid, Claude娘 in orange with a sunflower clip and a white dress, GPT娘 the silver-haired dragon lady.
+// DeepSeek娘 the blue-haired whale maid, Claude娘 with long orange hair and a white gown, GPT娘 the silver-haired dragon lady.
 // Gemini and Codex have no settled fan design yet, so theirs are drawn from their logos.
 // look: hair / eyes / skin and a hairdo; outfits: one per hire, so several people of a kind are told apart by clothes.
 const TYPES={
-  claude:{model:'Claude',nick:'Claude娘',names:['克劳德','克莱尔','柯蓝','小葵'],traits:['严谨认真','理工女','爱写长文档','有原则'],speed:3,memory:5,price:0.12,
+  // Claude娘 after the boss's reference: very long straight orange hair also falling in front, orange eyes,
+  // an orange flower clip with a black ribbon and gold tassel, a white gown with black side panels, orange motifs and a black bow
+  claude:{model:'Claude',nick:'Claude娘',names:['克劳德','克莱尔','柯蓝','小葵'],traits:['安静认真','理工女','爱看书','爱写长文档'],speed:3,memory:5,price:0.12,
     pitch:'先把需求想清楚，我再动笔。',
-    look:{hair:'#f0893a',hairShade:'#c4621e',hairLight:'#ffb072',eyes:'#e0701e',skin:'#f8dcc4',style:'twintail',acc:['sunflower']},
-    outfits:[{dress:'#fbf7f0',trim:'#f0893a',sash:true,legs:'#fbf7f0'},{dress:'#f0893a',trim:'#fbf7f0',collar:'#fbf7f0',legs:'#3a2a2a'},{dress:'#2b2838',trim:'#f0893a',apron:true,legs:'#2b2838'}]},
+    look:{hair:'#ff7a1a',hairShade:'#c94e14',hairLight:'#ffa65a',eyes:'#ff6f15',skin:'#fff0e4',style:'long',length:'xlong',acc:['orangeFlower','blackRibbon']},
+    outfits:[{dress:'#fbf6ee',trim:'#ff7a1a',gown:true,legs:'#fbf6ee',shoes:'#e8ddd0'},
+      {dress:'#ff7a1a',trim:'#fbf6ee',collar:'#fbf6ee',legs:'#fbf6ee',shoes:'#2a1c1c'},
+      {dress:'#2a1c1c',trim:'#ff7a1a',apron:true,legs:'#2a1c1c',shoes:'#2a1c1c'}]},
   gpt:{model:'GPT',nick:'GPT娘',names:['阿 G','小 G','吉皮','白龙'],traits:['精明强干','大姐大','雷厉风行','偶尔自信过头'],speed:4,memory:4,price:0.10,
     pitch:'交给我，今天就能出稿。',
     look:{hair:'#eceef6',hairShade:'#b9bccf',hairLight:'#ffffff',eyes:'#9a62d8',skin:'#f8e0cc',style:'long',acc:['horns','wings','dragonTail']},
     outfits:[{dress:'#ffffff',trim:'#d6ae46',gold:true,legs:'#ffffff'},{dress:'#2a2836',trim:'#d6ae46',collar:'#ffffff',legs:'#2a2836'},{dress:'#e9e4ff',trim:'#9a62d8',legs:'#ffffff'}]},
-  // 鲸鱼娘 after the reference sheets in github.com/Neko3000/deepseek-whalechan (character by ZipZipPipe & 上善无形):
-  // long wavy hair from mid blue to cyan tips, a forward cowlick, whale-fin ears, maid headdress and blue bows,
-  // deep-sea navy maid dress with gold lace, white apron with a little whale, white tights, a big navy whale tail
+  // 鲸鱼娘 (character by ZipZipPipe & 上善无形; see github.com/Neko3000/deepseek-whalechan), coloured after the boss's reference:
+  // long indigo-blue hair with a cowlick, pale pointed fin ears angled up, white maid headdress, deep-sea navy maid dress,
+  // white apron with a light-blue bow, white socks, and the navy whale tail
   deepseek:{model:'DeepSeek',nick:'DeepSeek娘',names:['阿深','深深','鲸鲸','小蓝'],traits:['元气可爱','饭量无底','有点傲娇','没电就摸鱼'],speed:3,memory:3,price:0.03,
     pitch:'先给我一碗白饭，推理马上开始！',
-    look:{hair:'#2f5fd0',hairShade:'#21459e',hairLight:'#6f9ff2',hairTip:'#45b4f0',eyes:'#2a86f0',skin:'#fbe3d3',style:'long',
-      tail:'#1b2a5c',tailBelly:'#8a97bd',acc:['finEars','ahoge','maidCap','bows','whaleTail']},
-    outfits:[{dress:'#1b2a5c',trim:'#c99a3c',maid:true,legs:'#f4f4f8',shoes:'#1b2a5c'},
-      {dress:'#1b2a5c',trim:'#c99a3c',collar:'#ffffff',legs:'#f4f4f8',shoes:'#1b2a5c'},
-      {dress:'#9fd0f5',trim:'#ffffff',collar:'#ffffff',legs:'#9fd0f5',shoes:'#ffffff'}]},
+    look:{hair:'#4d62b0',hairShade:'#314384',hairLight:'#7089d8',eyes:'#3f78e0',skin:'#fbf1ea',style:'long',
+      fin:'#e6edf7',finEdge:'#9fb0d6',tail:'#1d2d60',tailBelly:'#8a97bd',acc:['elfFins','ahoge','maidCap','whaleTail']},
+    outfits:[{dress:'#1d2d60',trim:'#ffffff',maid:true,bow:'#749ce0',legs:'#f4f4f8',shoes:'#302e37'},
+      {dress:'#1d2d60',trim:'#749ce0',collar:'#ffffff',legs:'#f4f4f8',shoes:'#302e37'},
+      {dress:'#9fc4ef',trim:'#ffffff',collar:'#ffffff',legs:'#f4f4f8',shoes:'#ffffff'}]},
   gemini:{model:'Gemini',nick:'Gemini娘',names:['双子','小双','星河'],traits:['博览群书','爱列表格','一心二用'],speed:4,memory:5,price:0.08,
     pitch:'资料再长，我也能一口气读完。',
     look:{hair:'#5b8def',hair2:'#a273e6',hairShade:'#3d64c0',hairLight:'#b4cdff',eyes:'#7a5af0',skin:'#f6dccb',style:'buns',acc:['star']},
@@ -1269,7 +1273,7 @@ function drawPerson(e){
   if(state.selected===e) R(ctx,'#f2b544',x,y+18,12,1);
   ctx.fillStyle='rgba(0,0,0,.28)';ctx.fillRect(x+2,y+17,8,2);
   // behind the body: long hair, twin tails, wings, tails
-  if(L.style==='long'){hairR(2,3,8,10,L.hairShade);if(L.hairTip) R(ctx,L.hairTip,x+2,y+10,8,3);}
+  if(L.style==='long'){if(L.length==='xlong') hairR(1,3,10,14,L.hairShade);else hairR(2,3,8,10,L.hairShade);}
   if(L.style==='twintail'){hairR(0,3,2,8);hairR(10,3,2,8);R(ctx,L.hairShade,x+1,y+9,1,2);R(ctx,L.hairShade,x+10,y+9,1,2);}
   if(has('wings')){R(ctx,'#eef0fa',x,y+8,2,3);R(ctx,'#eef0fa',x+10,y+8,2,3);R(ctx,'#cfd3e6',x,y+10,1,1);R(ctx,'#cfd3e6',x+11,y+10,1,1);}
   if(has('whaleTail')){
@@ -1282,7 +1286,11 @@ function drawPerson(e){
   R(ctx,O.shoes||'#3a2a2a',x+4,y+17-(f?1:0),2,1);R(ctx,O.shoes||'#3a2a2a',x+6,y+17-(f?0:1),2,1);
   R(ctx,O.dress,x+3,y+9,6,3);R(ctx,O.dress,x+2,y+12,8,3);R(ctx,O.trim,x+2,y+14,8,1);
   if(O.apron){R(ctx,'#ffffff',x+4,y+10,4,4);R(ctx,'#ffffff',x+5,y+9,2,1);}
-  if(O.maid){R(ctx,'#ffffff',x+4,y+11,4,3);R(ctx,'#ffffff',x+5,y+10,2,1);R(ctx,'#2f5fd0',x+5,y+12,2,1);R(ctx,'#0f1a3a',x+5,y+9,2,1);}
+  if(O.maid){R(ctx,'#ffffff',x+4,y+11,4,3);R(ctx,'#ffffff',x+5,y+10,2,1);R(ctx,O.bow,x+5,y+12,2,1);R(ctx,O.bow,x+5,y+9,2,1);}
+  if(O.gown){
+    R(ctx,'#2a1c1c',x+2,y+12,2,2);R(ctx,'#2a1c1c',x+8,y+12,2,2);R(ctx,O.trim,x+4,y+13,1,1);R(ctx,O.trim,x+7,y+13,1,1);
+    R(ctx,'#2a1c1c',x+5,y+9,2,1);R(ctx,O.trim,x+5,y+10,2,1);
+  }
   if(O.sash) R(ctx,O.trim,x+3,y+11,6,1);
   if(O.collar) R(ctx,O.collar,x+4,y+9,4,1);
   if(O.gold){R(ctx,O.trim,x+3,y+9,6,1);R(ctx,O.trim,x+5,y+10,2,4);}
@@ -1290,6 +1298,8 @@ function drawPerson(e){
   R(ctx,O.dress,x+1,y+10+(typing?a:0),1,2);R(ctx,L.skin,x+1,y+12+(typing?a:0),1,1);
   R(ctx,O.dress,x+10,y+10+(typing?1-a:0),1,2);R(ctx,L.skin,x+10,y+12+(typing?1-a:0),1,1);
   if(e.carry){R(ctx,'#efe9dc',x+9,y+10,4,5);R(ctx,'#c3a6ea',x+9,y+10,4,1);}
+  // very long hair also falls in front of the shoulders
+  if(L.length==='xlong'){R(ctx,L.hair,x+2,y+8,1,6);R(ctx,L.hair,x+9,y+8,1,6);R(ctx,L.hairShade,x+2,y+13,1,1);R(ctx,L.hairShade,x+9,y+13,1,1);}
   // head
   R(ctx,L.skin,x+3,y+3,6,6);R(ctx,L.skin,x+5,y+8,2,1);
   hairR(3,1,6,2);hairR(2,2,8,1);hairR(3,3,6,1);R(ctx,L.hairLight,x+4,y+1,2,1);
@@ -1302,15 +1312,15 @@ function drawPerson(e){
   // accessories
   if(has('horns')){R(ctx,'#e9d9a2',x+3,y,1,1);R(ctx,'#e9d9a2',x+8,y,1,1);R(ctx,'#e9d9a2',x+2,y-1,1,1);R(ctx,'#e9d9a2',x+9,y-1,1,1);}
   if(has('smallHorns')){R(ctx,'#cfd3e6',x+3,y,1,1);R(ctx,'#cfd3e6',x+8,y,1,1);}
-  if(has('sunflower')){R(ctx,'#ffcc33',x+8,y,3,3);R(ctx,'#8a4a1a',x+9,y+1,1,1);}
-  if(has('whaleClip')){R(ctx,'#8cc0ff',x+8,y+1,3,2);R(ctx,'#8cc0ff',x+11,y,1,2);R(ctx,'#1f2a4a',x+8,y+1,1,1);}
+  if(has('orangeFlower')){R(ctx,'#ff7a1a',x+8,y,3,3);R(ctx,'#ffd24a',x+9,y+1,1,1);}
+  if(has('blackRibbon')){R(ctx,'#2a1c1c',x+10,y+2,1,2);R(ctx,'#d6ae46',x+10,y+4,1,1);}
   if(has('maidCap')){R(ctx,'#ffffff',x+3,y+1,6,1);R(ctx,'#ffffff',x+4,y,1,1);R(ctx,'#ffffff',x+7,y,1,1);}
   if(has('ahoge')){R(ctx,L.hair,x+6,y-1,1,1);R(ctx,L.hair,x+7,y-2,1,1);}
-  if(has('finEars')){
-    R(ctx,L.tail,x,y+3,2,1);R(ctx,L.tail,x-1,y+4,2,1);R(ctx,L.tailBelly,x,y+4,1,1);
-    R(ctx,L.tail,x+10,y+3,2,1);R(ctx,L.tail,x+11,y+4,2,1);R(ctx,L.tailBelly,x+11,y+4,1,1);
+  if(has('elfFins')){
+    // pale pointed fin ears angled up and out
+    R(ctx,L.fin,x,y+4,2,2);R(ctx,L.fin,x-1,y+3,1,1);R(ctx,L.fin,x-2,y+2,1,1);R(ctx,L.finEdge,x,y+5,2,1);
+    R(ctx,L.fin,x+10,y+4,2,2);R(ctx,L.fin,x+12,y+3,1,1);R(ctx,L.fin,x+13,y+2,1,1);R(ctx,L.finEdge,x+10,y+5,2,1);
   }
-  if(has('bows')){R(ctx,'#3d8fe0',x+2,y+5,1,1);R(ctx,'#3d8fe0',x+9,y+5,1,1);}
   if(has('star')){R(ctx,'#ffd76a',x+9,y,1,3);R(ctx,'#ffd76a',x+8,y+1,3,1);}
   if(state.dropHover===e.id){ctx.strokeStyle='#f2b544';ctx.lineWidth=1;ctx.strokeRect(x-1.5,y-2.5,15,22);}
 }
@@ -1321,15 +1331,19 @@ function drawPortrait(cv,L,O){
   const r=(x,y,w,h,col)=>{c.fillStyle=col;c.fillRect(x,y,w,h);};
   const hr=(x,y,w,h,col)=>r(x,y,w,h,col||(L.hair2&&x+w/2>16?L.hair2:L.hair));
   if(has('wings')){r(0,20,7,8,'#eef0fa');r(25,20,7,8,'#eef0fa');r(1,26,5,2,'#cfd3e6');r(26,26,5,2,'#cfd3e6');}
-  if(L.style==='long'){hr(6,9,20,20,L.hairShade);if(L.hairTip){r(6,21,20,8,L.hairTip);r(5,24,22,5,L.hairTip);}}
+  if(L.style==='long'){if(L.length==='xlong') hr(3,9,26,23,L.hairShade);else hr(6,9,20,20,L.hairShade);}
   if(L.style==='twintail'){hr(1,9,5,18);hr(26,9,5,18);r(3,22,2,4,L.hairShade);r(27,22,2,4,L.hairShade);}
   if(has('whaleTail')){r(25,25,5,4,L.tail);r(27,21,5,4,L.tail);r(30,19,2,3,L.tail);r(27,24,4,1,L.tailBelly);}
   // shoulders and outfit
   r(7,25,18,7,O.dress);
   if(O.apron){r(11,26,10,6,'#ffffff');r(10,26,1,6,'#e6e6ee');r(21,26,1,6,'#e6e6ee');}
   if(O.maid){
-    r(12,25,8,7,'#ffffff');r(13,25,6,2,'#0f1a3a');r(15,27,2,1,'#0f1a3a');r(15,29,2,1,O.trim);r(15,31,2,1,O.trim);
-    r(9,27,2,5,'#ffffff');r(21,27,2,5,'#ffffff');r(7,30,2,2,O.trim);r(23,30,2,2,O.trim);
+    r(12,25,8,7,'#ffffff');r(13,25,6,2,O.bow);r(15,27,2,1,O.bow);r(15,29,2,1,O.bow);r(15,31,2,1,O.bow);
+    r(9,27,2,5,'#ffffff');r(21,27,2,5,'#ffffff');
+  }
+  if(O.gown){
+    r(7,27,4,5,'#2a1c1c');r(21,27,4,5,'#2a1c1c');r(8,29,2,2,O.trim);r(22,29,2,2,O.trim);
+    r(13,25,6,2,'#2a1c1c');r(15,27,2,2,O.trim);r(12,30,2,1,O.trim);r(18,30,2,1,O.trim);
   }
   if(O.collar){r(11,25,10,2,O.collar);r(15,27,2,2,O.collar);}
   if(O.sash) r(7,29,18,2,O.trim);
@@ -1342,7 +1356,7 @@ function drawPortrait(cv,L,O){
   hr(8,5,16,6);hr(7,7,18,4);hr(9,4,14,1);r(11,6,5,1,L.hairLight);
   hr(9,10,14,1);hr(9,11,3,2);hr(14,11,3,1);hr(19,11,4,2);
   hr(7,10,2,L.style==='short'?7:11);hr(23,10,2,L.style==='short'?7:11);
-  if(L.hairTip){r(7,17,2,4,L.hairTip);r(23,17,2,4,L.hairTip);}
+  if(L.length==='xlong'){hr(6,19,3,13);hr(23,19,3,13);r(6,30,3,2,L.hairShade);r(23,30,3,2,L.hairShade);}
   if(L.style==='buns'){hr(5,2,6,6);hr(21,2,6,6);r(7,3,2,1,L.hairLight);}
   // eyes
   const eyeDark=shade(L.eyes,.6);
@@ -1354,17 +1368,18 @@ function drawPortrait(cv,L,O){
   // accessories
   if(has('horns')){r(9,1,2,5,'#e9d9a2');r(21,1,2,5,'#e9d9a2');r(8,0,2,2,'#f6ecc8');r(22,0,2,2,'#f6ecc8');}
   if(has('smallHorns')){r(10,2,2,3,'#cfd3e6');r(20,2,2,3,'#cfd3e6');}
-  if(has('sunflower')){r(22,2,4,8,'#ffcc33');r(20,4,8,4,'#ffcc33');r(21,3,6,6,'#ffd95c');r(22,4,4,4,'#8a4a1a');r(23,5,1,1,'#a8642a');}
-  if(has('whaleClip')){r(20,5,6,3,'#8cc0ff');r(26,4,2,2,'#8cc0ff');r(26,7,1,1,'#8cc0ff');r(21,6,1,1,'#1f2a4a');r(20,8,6,1,'#5a9ae8');}
+  if(has('orangeFlower')){r(22,2,4,8,'#ff7a1a');r(20,4,8,4,'#ff7a1a');r(21,3,6,6,'#ff9440');r(23,5,2,2,'#ffd24a');}
+  if(has('blackRibbon')){r(26,8,3,2,'#2a1c1c');r(27,10,2,4,'#2a1c1c');r(27,14,2,2,'#d6ae46');r(28,16,1,2,'#d6ae46');}
   if(has('star')){r(23,2,1,7,'#ffd76a');r(20,5,7,1,'#ffd76a');r(22,4,3,3,'#ffd76a');}
   if(has('maidCap')){r(9,4,14,2,'#ffffff');for(const sx of [9,12,15,18,21]) r(sx,3,2,1,'#ffffff');r(9,6,14,1,'#dde3ef');}
   if(has('ahoge')){r(16,1,1,4,L.hair);r(17,0,2,1,L.hair);}
-  if(has('finEars')){
-    // drooping fins, wide at the head and tapering outward, pale on the underside
-    r(3,11,5,1,L.tail);r(2,12,6,1,L.tail);r(1,13,5,1,L.tail);r(0,14,4,1,L.tail);r(0,15,2,1,L.tail);r(2,13,3,1,L.tailBelly);r(1,14,2,1,L.tailBelly);
-    r(24,11,5,1,L.tail);r(24,12,6,1,L.tail);r(26,13,5,1,L.tail);r(28,14,4,1,L.tail);r(30,15,2,1,L.tail);r(27,13,3,1,L.tailBelly);r(29,14,2,1,L.tailBelly);
+  if(has('elfFins')){
+    // pale pointed fin ears rising from the sides of the head, a darker edge underneath
+    r(6,12,3,3,L.fin);r(4,10,3,3,L.fin);r(2,8,3,3,L.fin);r(1,6,2,2,L.fin);r(0,5,1,1,L.fin);
+    r(6,15,3,1,L.finEdge);r(4,13,2,1,L.finEdge);r(2,11,2,1,L.finEdge);r(1,8,1,1,L.finEdge);
+    r(23,12,3,3,L.fin);r(25,10,3,3,L.fin);r(27,8,3,3,L.fin);r(29,6,2,2,L.fin);r(31,5,1,1,L.fin);
+    r(23,15,3,1,L.finEdge);r(26,13,2,1,L.finEdge);r(28,11,2,1,L.finEdge);r(30,8,1,1,L.finEdge);
   }
-  if(has('bows')){r(6,8,3,2,'#3d8fe0');r(23,8,3,2,'#3d8fe0');r(7,8,1,2,'#2a6fc0');r(24,8,1,2,'#2a6fc0');}
 }
 // a portrait canvas element for an employee or a kind of employee
 function portraitEl(look,outfit,size=64){
