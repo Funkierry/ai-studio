@@ -285,6 +285,7 @@ async function route(){
   const [head,...rest]=location.hash.slice(1).split('/');
   const tab=VIEWS[head]?head:'git';
   if(tab==='docs'&&rest.length){D.path=decodeURIComponent(rest.join('/'));D.version=null;D.editing=false;}
+  if(tab==='git'&&rest.length){G.repo=decodeURIComponent(rest[0]);G.ref=rest[1]?decodeURIComponent(rest[1]):'main';G.sub=rest[2]==='prs'?'prs':rest[2]==='log'?'log':'tree';}
   document.querySelectorAll('.tabs a').forEach(a=>{if(a.dataset.tab===tab) a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
   view.innerHTML='<div class="main px"><p class="empty">加载中…</p></div>';
   try{await VIEWS[tab]();}catch(e){fail(e);}

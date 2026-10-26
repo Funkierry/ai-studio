@@ -16,27 +16,43 @@ const PORT = +(arg('port') || process.env.PORT) || 5300;
 const DATA = path.resolve(arg('data') || process.env.STUDIO_DATA || path.join(__dirname, 'data'));
 const PUBLIC = path.join(__dirname, 'public');
 const co = createCompany(DATA);
+const { createExecution } = require('./lib/execution');
+const { createPreview } = require('./lib/preview');
+const execution = createExecution(co);
+const preview = createPreview(co);
+execution.kick();
 
 const routes = [];
 const on = (method, pattern, fn) => routes.push({ method, fn, re: new RegExp(`^${pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)')}$`) });
+const legacy = () => { throw Object.assign(new Error('执行已迁移到服务端，请刷新页面使用真实工作区'), { status: 409 }); };
 
 on('GET', '/api/state', () => co.state());
 on('GET', '/api/summary', () => co.summary());
 on('GET', '/api/models', () => co.models());
-on('POST', '/api/employees/sync', b => co.syncEmployees(b));
-on('POST', '/api/orders', b => co.addOrder(b));
+on('GET', '/api/workspace', () => ({ ...execution.snapshot(), previewBase: preview.url(), version: require('./package.json').version }));
+on('POST', '/api/workspace/employees', b => execution.addEmployee(b));
+on('POST', '/api/workspace/projects/:id/start', (b, p) => execution.createJobs(+p.id));
+on('POST', '/api/workspace/projects/:id/pause', (b, p) => execution.pause(+p.id, !!b.paused));
+on('POST', '/api/workspace/orders/:id/start', (b, p) => execution.startOrder(p.id, b.employee));
+on('POST', '/api/workspace/jobs/:id/revise', (b, p) => execution.revise(p.id, b.feedback));
+on('POST', '/api/workspace/jobs/:id/approve', (b, p) => execution.approve(p.id));
+on('POST', '/api/employees/sync', legacy);
+on('POST', '/api/orders', b => {
+  if (['incoming','preset'].includes(b.source)) throw Object.assign(new Error('真实工作区不接收演示订单，请刷新页面'), { status: 409 });
+  return co.addOrder(b);
+});
 on('POST', '/api/orders/:id/update', (b, p) => co.updateOrder(p.id, b));
-on('POST', '/api/orders/:id/plan', (b, p) => co.orderPlan(p.id, b));
-on('POST', '/api/orders/:id/deliver', (b, p) => co.orderDeliver(p.id, b));
-on('POST', '/api/orders/:id', (b, p) => co.setOrder(p.id, b));
-on('POST', '/api/events', b => co.events(b));
-on('POST', '/api/approvals', b => co.approval(b));
-on('POST', '/api/reviews', b => co.review(b));
-on('POST', '/api/deliverables', b => co.deliverable(b));
-on('POST', '/api/meetings', b => co.meeting(b));
-on('POST', '/api/projects', b => co.launchProject(b));
-on('POST', '/api/projects/:id/roles/:idx/start', (b, p) => co.roleStarted(+p.id, +p.idx));
-on('POST', '/api/projects/:id/roles/:idx/done', (b, p) => co.roleDone(+p.id, +p.idx, b));
+on('POST', '/api/orders/:id/plan', legacy);
+on('POST', '/api/orders/:id/deliver', legacy);
+on('POST', '/api/orders/:id', legacy);
+on('POST', '/api/events', legacy);
+on('POST', '/api/approvals', legacy);
+on('POST', '/api/reviews', legacy);
+on('POST', '/api/deliverables', legacy);
+on('POST', '/api/meetings', legacy);
+on('POST', '/api/projects', b => { const p = co.launchProject(b); execution.createJobs(p.id); return p; });
+on('POST', '/api/projects/:id/roles/:idx/start', legacy);
+on('POST', '/api/projects/:id/roles/:idx/done', legacy);
 on('POST', '/api/projects/:id/review', (b, p) => co.projectReview(+p.id, b));
 
 on('GET', '/api/git/repos', () => co.git.repos());
@@ -66,9 +82,15 @@ function readBody(req) {
 const send = (res, code, data) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); };
 
 http.createServer(async (req, res) => {
-  const url = new URL(req.url, `http://localhost:${PORT}`);
-  const pathname = decodeURIComponent(url.pathname);
+  let url, pathname;
+  try { url = new URL(req.url, `http://localhost:${PORT}`); pathname = decodeURIComponent(url.pathname); }
+  catch { return send(res, 400, { error: '请求地址格式不合法' }); }
   if (pathname.startsWith('/api/')) {
+    if (req.method === 'POST') {
+      const origin = req.headers.origin;
+      if ((origin && ![`http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`].includes(origin)) || !req.headers['content-type']?.startsWith('application/json'))
+        return send(res, 403, { error: '拒绝跨站写入' });
+    }
     const r = routes.find(x => x.method === req.method && x.re.test(pathname));
     if (!r) return send(res, 404, { error: '没有这个接口' });
     try {
@@ -80,7 +102,7 @@ http.createServer(async (req, res) => {
     }
   }
   const file = path.resolve(PUBLIC, `.${pathname === '/' ? '/index.html' : pathname}`);
-  if (!file.startsWith(PUBLIC) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, { error: 'not found' });
+  if (!file.startsWith(PUBLIC + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, { error: 'not found' });
   res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream' });
   fs.createReadStream(file).pipe(res);
 }).listen(PORT, '127.0.0.1', () => {

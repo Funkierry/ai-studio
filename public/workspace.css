@@ -1,0 +1,40 @@
+#workspace{max-width:1500px;margin:0 auto;font-size:14px;line-height:1.6}
+#workspace .ws-top{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:18px;padding:18px 22px}
+#workspace h1{font-size:23px}#workspace h2{font-size:19px}#workspace h3{font-size:15px}
+#workspace .ws-top .intro{margin-right:auto}#workspace .muted{color:var(--muted);font-size:13px}
+#workspace .ws-grid{display:grid;grid-template-columns:260px minmax(0,1fr) 235px;gap:16px;align-items:start}
+#workspace .ws-panel{padding:18px;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+#workspace .ws-tasks{display:flex;flex-direction:column;gap:7px;max-height:70vh;overflow:auto;margin-top:14px}
+#workspace .ws-task{display:block;padding:12px;text-align:left;background:var(--panel-2);border:1px solid var(--line);border-radius:5px;width:100%}
+#workspace .ws-task[aria-current=true]{border-color:var(--accent);box-shadow:inset 3px 0 var(--accent)}
+#workspace .ws-task b{display:block;overflow-wrap:anywhere}#workspace .ws-task small{color:var(--muted)}
+#workspace .ws-state{display:inline-block;font-size:12px;padding:2px 7px;border-radius:3px;background:var(--panel-2);color:var(--info);margin:5px 0}
+#workspace .ws-state.failed,#workspace .ws-state.blocked,#workspace .ws-state.interrupted{color:var(--bad)}
+#workspace .ws-state.done{color:var(--ok)}#workspace .ws-state.review{color:var(--accent)}
+#workspace .ws-goal{white-space:pre-wrap;color:var(--muted);margin:12px 0 20px;overflow-wrap:anywhere}
+#workspace .ws-role{padding:16px 0;border-top:1px solid var(--line)}#workspace .ws-role p{margin:7px 0;overflow-wrap:anywhere}
+#workspace .ws-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+#workspace a{color:var(--info)}#workspace a.btn{font-size:12px;text-decoration:none}
+#workspace button:disabled{cursor:wait;opacity:.5}#workspace textarea,#workspace select,#workspace input{background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:9px;width:100%;font:inherit}
+#workspace textarea{resize:vertical;min-height:85px}#workspace label{display:block;margin:12px 0}
+#workspace label span{display:block;margin-bottom:6px;color:var(--muted)}
+#workspace .ws-person{display:flex;gap:9px;align-items:center;margin:14px 0}#workspace .ws-person canvas{image-rendering:pixelated;flex:none}
+#workspace .ws-person b{font-size:13px}#workspace .ws-person small{display:block;font-size:11px;color:var(--muted)}
+#workspace .ws-error{white-space:pre-wrap;color:var(--bad);padding:10px;border-left:3px solid var(--bad);background:var(--bg)}
+#workspace .ws-notice{margin-bottom:16px;padding:12px 16px;border:1px solid var(--line);border-radius:5px;color:var(--muted)}
+#workspace .ws-views{display:flex;gap:8px;margin:0 0 16px}
+#workspace .ws-office{display:none;min-width:0}#workspace .ws-office>p{margin-top:12px}
+#workspace[data-view=office] .ws-grid{grid-template-columns:minmax(0,1fr) 330px}
+#workspace[data-view=office] .ws-office{display:block;grid-column:1;grid-row:1/span 2}
+#workspace[data-view=office] .ws-list{grid-column:2;grid-row:1}
+#workspace[data-view=office] .ws-team{grid-column:2;grid-row:2}
+#workspace[data-view=office] #ws-detail{display:none}
+#workspace[data-view=office] .ws-tasks{max-height:300px}
+#workspace dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:24px;width:min(620px,95vw);max-height:90vh;overflow:auto}
+#workspace dialog::backdrop{background:#09070dc9}#workspace .form-error{color:var(--bad);white-space:pre-wrap}
+#workspace .ws-test{padding:10px;background:var(--bg);border-left:3px solid var(--ok);margin:10px 0}
+#workspace .ws-test.bad{border-color:var(--bad)}#workspace .ws-preview iframe{width:100%;height:420px;border:1px solid var(--line);background:white}
+#workspace .ws-empty{padding:35px 8px;color:var(--muted);text-align:center}
+@media(max-width:1100px){#workspace .ws-grid{grid-template-columns:230px minmax(0,1fr)}#workspace .ws-team{grid-column:1/-1}}
+@media(max-width:700px){#workspace .ws-grid{grid-template-columns:1fr}#workspace .ws-tasks{max-height:230px}#workspace .ws-top{padding:14px}}
+@media(max-width:1000px){#workspace[data-view=office] .ws-grid{grid-template-columns:1fr}#workspace[data-view=office] .ws-office,#workspace[data-view=office] .ws-list,#workspace[data-view=office] .ws-team{grid-column:1;grid-row:auto}}

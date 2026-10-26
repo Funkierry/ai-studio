@@ -422,7 +422,7 @@ const API={on:false,buf:{activity:[],ledger:[]},empDirty:false,
   },
   ledger(e,tokens,cost){if(this.on) this.buf.ledger.push({employee:e.id,tokens,cost,task:e.job?.task.title||null,day:state.day});},
   flush(){
-    if(!this.on) return;
+    if(!this.on||this.runtimeOwned) return;
     const b=this.buf;
     if(b.activity.length||b.ledger.length){this.buf={activity:[],ledger:[]};this.post('/api/events',b);}
     if(this.empDirty){this.empDirty=false;this.post('/api/employees/sync',state.emps.map(empSnapshot));}
@@ -1645,13 +1645,18 @@ cv.addEventListener('pointermove',ev=>{const p=toLocal(ev.clientX,ev.clientY);cv
 cv.addEventListener('click',ev=>{
   const p=toLocal(ev.clientX,ev.clientY);if(!p) return;
   const e=empAt(p);
-  if(e){select(e);return;}
+  if(e){
+    if(API.runtimeOwned) document.querySelector('.stage-wrap').dispatchEvent(new CustomEvent('studio-employee',{detail:e.id}));
+    else select(e);
+    return;
+  }
   for(const k of ['server','archive']) if(inRoom(p,ROOMS[k])&&!state.unlocked[k]){toast(`${ROOMS[k].label}还没解锁：累计交付 ${ROOMS[k].lock} 个订单后开放。`);return;}
   // the rooms are doors into the real company systems
   if(API.on){
     const go=[['server','#git'],['archive','#docs'],['boss','#records']].find(([k])=>inRoom(p,ROOMS[k]));
     if(go){window.open('/company.html'+go[1],'_blank','noopener');return;}
   }
+  if(API.runtimeOwned) return;
   if(inRoom(p,ROOMS.meeting)) toast('会议室：把订单拖到这里，两名空闲员工会一起讨论。');
   else if(inRoom(p,ROOMS.work)) toast('工位区：把订单拖到空地上，两名空闲员工会分工协作、互相审查。');
   else if(inRoom(p,ROOMS.boss)) toast('这是你的办公室。员工需要确认时会到门口排队。');
@@ -2048,6 +2053,7 @@ function renderHeader(){
 }
 
 document.addEventListener('keydown',ev=>{
+  if(API.runtimeOwned) return;
   if(ev.target.closest('input,textarea,select')||!$('#modal').hidden) return;
   if(ev.key===' '&&!ev.target.closest('button,.order')){ev.preventDefault();setSpeed(state.speed?0:1);}
   else if(ev.key==='1') setSpeed(1);
@@ -2447,6 +2453,29 @@ async function boot(){
   const saved=await API.boot();
   if(API.on) MODELS=await fetch('/api/models',{cache:'no-store'}).then(r=>r.json()).catch(()=>null);
   applyCustomTypes();
+  if(API.on){
+    API.runtimeOwned=true;
+    document.querySelector('header.top').hidden=true;
+    document.querySelector('main.layout').hidden=true;
+    const office=document.querySelector('.stage-wrap');
+    cv.setAttribute('aria-label','像素工作室：点击员工查看真实任务，点击机房或档案室打开代码和文档');
+    document.querySelector('.proto-flag').textContent='办公室视图 · 执行状态来自服务端';
+    state.unlocked.server=true;state.unlocked.archive=true;drawBG();buildRoomLabels();
+    const sync=s=>{
+      for(const saved of s.employees){
+        let e=empOf(saved.id);
+        if(!e){e=hire(saved.profile?.type||saved.id,false,{id:saved.id,name:saved.name,variant:saved.profile?.variant,post:saved.profile?.post});}
+        if(!e) continue;
+        const j=s.jobs.find(j=>j.employee===e.id&&j.status==='running');
+        e.writing=j?{out:'任务'}:null;e.job=null;e.waiting=false;
+        const spot=j?e.desk.seat:LOUNGE[state.emps.indexOf(e)%LOUNGE.length];
+        e.spot=spot;e.x=spot.x;e.y=spot.y;
+      }
+    };
+    const {mountWorkspace}=await import('./workspace.js');
+    await mountWorkspace({office,models:MODELS,onSnapshot:sync,avatar:s=>{const e=empOf(s.id);return e?avatarEl(e,40):document.createElement('span');}});
+    return;
+  }
   // one line per kind of employee: which agent or API really writes for them
   const models=MODELS?(MODELS.fake?'测试替身（不调用真实模型）':Object.entries(MODELS.types).filter(([t])=>TYPES[t]).map(([t,pid])=>{
     const p=MODELS.providers[pid];return `${TYPES[t].model} 员工 → ${p.name}${p.configured?'':`（${p.hint}）`}`;}).join('；')):'';
@@ -2465,6 +2494,7 @@ boot();
 let last=performance.now(),acc=0;
 setInterval(()=>{
   const now=performance.now();let dt=Math.min(1.5,(now-last)/1000);last=now;T+=dt;acc+=dt;
+  if(API.runtimeOwned){state.emps.forEach(e=>e.anim+=dt);return;}
   while(dt>0){const d=Math.min(.1,dt);update(d);dt-=d;}
   if(acc>.25){acc=0;renderHeader();if(state.dirty){state.dirty=false;renderStaff();renderActive();}}
 },40);
