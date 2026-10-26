@@ -801,6 +801,7 @@ const planArrivals=()=>{state.arrivals=[10*60+40,12*60+50,14*60+50,16*60+30];};
 state.stats=newStats();
 const clock=()=>{const m=Math.floor(state.minutes);return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')};
 const dirty=()=>{state.dirty=true};
+let officeMotion=null;
 
 // opts: id / name / look when restoring someone who already works here
 function hire(type,walkIn=true,opts={}){
@@ -2461,16 +2462,33 @@ async function boot(){
     cv.setAttribute('aria-label','像素工作室：点击员工查看真实任务，点击机房或档案室打开代码和文档');
     document.querySelector('.proto-flag').textContent='办公室视图 · 执行状态来自服务端';
     state.unlocked.server=true;state.unlocked.archive=true;drawBG();buildRoomLabels();
+    const {createOfficeMotion}=await import('./office-motion.js');
+    officeMotion=createOfficeMotion({
+      employees:()=>state.emps,
+      move:(e,spot)=>{
+        if(e.spot===spot) return;
+        // Finish the current route before changing destination; never jump across a room.
+        if(e.path.length){e.path.push(...route(e.spot,spot));e.spot=spot;}
+        else goTo(e,spot);
+      },
+      say,
+      handoff:(from,to)=>sendPacket(from,to,null,false,null),
+      idleSpot:e=>freeLounge()||LOUNGE[state.emps.indexOf(e)%LOUNGE.length],
+      reviewSpot:e=>QUEUE[state.emps.indexOf(e)%QUEUE.length],
+      stepEmployee:updateEmp,
+      stepPackets:dt=>{for(const p of [...state.packets]){p.t+=dt;if(p.t>=p.dur)state.packets=state.packets.filter(x=>x!==p);}}
+    });
     const sync=s=>{
       for(const saved of s.employees){
         let e=empOf(saved.id);
-        if(!e){e=hire(saved.profile?.type||saved.id,false,{id:saved.id,name:saved.name,variant:saved.profile?.variant,post:saved.profile?.post});}
+        if(!e){
+          e=hire(saved.profile?.type||saved.id,false,{id:saved.id,name:saved.name,variant:saved.profile?.variant,post:saved.profile?.post});
+          if(e){const spot=freeLounge()||LOUNGE[state.emps.indexOf(e)%LOUNGE.length];e.spot=spot;e.x=spot.x;e.y=spot.y;}
+        }
         if(!e) continue;
-        const j=s.jobs.find(j=>j.employee===e.id&&j.status==='running');
-        e.writing=j?{out:'任务'}:null;e.job=null;e.waiting=false;
-        const spot=j?e.desk.seat:LOUNGE[state.emps.indexOf(e)%LOUNGE.length];
-        e.spot=spot;e.x=spot.x;e.y=spot.y;
+        e.job=null;
       }
+      officeMotion.sync(s);
     };
     const {mountWorkspace}=await import('./workspace.js');
     await mountWorkspace({office,models:MODELS,onSnapshot:sync,avatar:s=>{const e=empOf(s.id);return e?avatarEl(e,40):document.createElement('span');}});
@@ -2494,7 +2512,10 @@ boot();
 let last=performance.now(),acc=0;
 setInterval(()=>{
   const now=performance.now();let dt=Math.min(1.5,(now-last)/1000);last=now;T+=dt;acc+=dt;
-  if(API.runtimeOwned){state.emps.forEach(e=>e.anim+=dt);return;}
+  if(API.runtimeOwned){
+    while(dt>0){const d=Math.min(.1,dt);officeMotion?.step(d);dt-=d;}
+    return;
+  }
   while(dt>0){const d=Math.min(.1,dt);update(d);dt-=d;}
   if(acc>.25){acc=0;renderHeader();if(state.dirty){state.dirty=false;renderStaff();renderActive();}}
 },40);
