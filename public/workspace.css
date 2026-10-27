@@ -20,6 +20,13 @@
 #workspace label span{display:block;margin-bottom:6px;color:var(--muted)}
 #workspace .ws-person{display:flex;gap:9px;align-items:center;margin:14px 0}#workspace .ws-person canvas{image-rendering:pixelated;flex:none}
 #workspace .ws-person b{font-size:13px}#workspace .ws-person small{display:block;font-size:11px;color:var(--muted)}
+#workspace .ws-access-button{font-size:11px;padding:4px 8px;margin-top:6px}
+#workspace .ws-connections{border:0;padding:0;margin:12px 0;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+#workspace .ws-connections legend{color:var(--muted);margin-bottom:6px}
+#workspace .ws-connection-option{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:7px;padding:12px;margin:0}
+#workspace .ws-connection-option:has(input:checked){border-color:var(--accent);background:var(--panel-2)}
+#workspace .ws-connection-option input{width:auto;accent-color:var(--accent);margin-top:5px}
+#workspace .ws-connection-option span{margin:0;color:var(--text)}#workspace .ws-connection-option small{display:block;color:var(--muted);font-size:12px;margin-top:5px}
 #workspace .ws-error{white-space:pre-wrap;color:var(--bad);padding:10px;border-left:3px solid var(--bad);background:var(--bg)}
 #workspace .ws-notice{margin-bottom:16px;padding:12px 16px;border:1px solid var(--line);border-radius:5px;color:var(--muted)}
 #workspace .ws-views{display:flex;gap:8px;margin:0 0 16px}

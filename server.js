@@ -34,6 +34,7 @@ on('GET', '/api/workspace/projects/:id/messages', (b,p,q) => execution.messages(
 on('POST', '/api/workspace/projects/:id/messages', (b,p) => execution.postMessage(+p.id,b));
 on('POST', '/api/workspace/discussions/:id/retry', (b,p) => execution.retryDiscussion(+p.id));
 on('POST', '/api/workspace/employees', b => execution.addEmployee(b));
+on('POST', '/api/workspace/employees/:id/connection', (b,p) => execution.updateEmployeeConnection(p.id,b));
 on('POST', '/api/workspace/projects/:id/start', (b, p) => execution.createJobs(+p.id));
 on('POST', '/api/workspace/projects/:id/pause', (b, p) => execution.pause(+p.id, !!b.paused));
 on('POST', '/api/workspace/orders/:id/start', (b, p) => execution.startOrder(p.id, b.employee));

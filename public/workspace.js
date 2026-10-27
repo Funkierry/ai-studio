@@ -31,6 +31,10 @@ export async function mountWorkspace({ office, models, onSnapshot, avatar }) {
   const chatCache=new Map(),chatDrafts=new Map(),sendIds=new Map();
   let chatProject=null,chatLoading=false,lastChat='',lastChatHeading='';
   const person = id => data.employees.find(e=>e.id===id)?.name || id;
+  const providerFor = e => {
+    const type=e.profile?.type||e.id,mode=e.profile?.connection;
+    return models?.providers?.[mode?models?.connections?.[mode]?.[type]:models?.types?.[type]];
+  };
   const optEmployees = preferred => data.employees.map(e=>`<option value="${esc(e.id)}"${e.id===preferred?' selected':''}>${esc(e.name)} · ${esc(e.profile?.postLabel||e.profile?.post||e.model)}</option>`).join('');
   const notice = (message, error=false) => {$('#ws-notice').innerHTML=`<div class="ws-notice${error?' ws-error':''}">${esc(message)}</div>`;};
   function setView(view) {
@@ -149,8 +153,8 @@ export async function mountWorkspace({ office, models, onSnapshot, avatar }) {
     for(const e of data.employees) {
       const el=document.createElement('div');el.className='ws-person';el.append(avatar(e));
       const content=document.createElement('div'),running=data.jobs.find(j=>j.employee===e.id&&j.status==='running');
-      const provider=models?.providers?.[models?.types?.[e.profile?.type||e.id]];
-      content.innerHTML=`<b>${esc(e.name)}</b><small>${esc(e.profile?.postLabel||e.profile?.post||'通用')} · ${conversations.some(t=>t.employee===e.id)?'参与项目讨论':running?'执行中':'可接新任务'}</small><small>${models?.fake?'测试替身':esc(provider?.model||'未接入模型')}</small>`;
+      const provider=providerFor(e),occupied=!!running||conversations.some(t=>t.employee===e.id);
+      content.innerHTML=`<b>${esc(e.name)}</b><small>${esc(e.profile?.postLabel||e.profile?.post||'通用')} · ${conversations.some(t=>t.employee===e.id)?'参与项目讨论':running?'执行中':'可接新任务'}</small><small>${models?.fake?'测试替身':`${provider?.connection==='local'?'本机':'API 接入'} · ${esc(provider?.model||'未接入模型')}`}</small><button class="btn ws-access-button" data-employee-connection="${esc(e.id)}"${occupied?' disabled':''} aria-label="${esc(e.name)}的接入设置">接入设置</button>`;
       el.append(content);$('#ws-team').append(el);
     }
     if(!data.employees.length) $('#ws-team').innerHTML='<p class="ws-empty">先添加一位员工</p>';
@@ -163,8 +167,8 @@ export async function mountWorkspace({ office, models, onSnapshot, avatar }) {
     button.disabled=true;
     try {await fn();if(reload){lastDetail='';await refresh();}} catch(e){notice(e.message,true);} finally{if(button.isConnected)button.disabled=false;}
   }
-  function dialog(html, submit) {
-    const d=$('#ws-dialog');d.innerHTML=`<form>${html}<p class="form-error" role="alert"></p><div class="ws-actions"><button class="btn primary" type="submit">开始</button><button class="btn" type="button" data-close>取消</button></div></form>`;
+  function dialog(html, submit, submitLabel='开始') {
+    const d=$('#ws-dialog');d.innerHTML=`<form>${html}<p class="form-error" role="alert"></p><div class="ws-actions"><button class="btn primary" type="submit">${esc(submitLabel)}</button><button class="btn" type="button" data-close>取消</button></div></form>`;
     d.querySelector('[data-close]').onclick=()=>d.close();d.showModal();
     d.querySelector('form').onsubmit=async ev=>{ev.preventDefault();const b=d.querySelector('[type=submit]');b.disabled=true;try{await submit(new FormData(ev.target));d.close();lastDetail='';await refresh();}catch(e){d.querySelector('.form-error').textContent=e.message;}finally{b.disabled=false;}};
     return d;
@@ -221,10 +225,47 @@ export async function mountWorkspace({ office, models, onSnapshot, avatar }) {
       d.querySelector('[data-tester]').hidden=e.target.value!=='code';
     };
   };
-  $('#ws-hire').onclick=()=>dialog(`<h2>添加员工</h2><label><span>名字</span><input name="name" required maxlength="40"></label><label><span>模型</span><select name="type">${Object.entries(models?.types||{}).map(([type,id])=>{const p=models.providers[id];return `<option value="${esc(type)}"${!models.fake&&!p?.configured?' disabled':''}>${esc(type)} · ${esc(p?.name||'未接入')}${!models.fake&&!p?.configured?'（未配置）':''}</option>`;}).join('')}</select></label><label><span>岗位</span><select name="post"><option value="frontend">前端开发</option><option value="backend">后端开发</option><option value="test">测试</option><option value="writing">文案写作</option><option value="general">通用</option></select></label><label><span>专长</span><input name="persona"></label>`,f=>api('/api/workspace/employees',Object.fromEntries(f)));
+  async function employeeDialog(employee) {
+    try {
+      models=await api('/api/models');
+      if(!models.connections)throw new Error('接入选项需要新版服务，请重启工作室后刷新。');
+      const currentType=employee?.profile?.type||employee?.id;
+      const preferred=employee?providerFor(employee)?.connection:null;
+      const initialMode=preferred||(Object.values(models.connections.local).some(id=>models.fake||models.providers[id]?.configured)?'local':'api');
+      const d=dialog(`<h2>${employee?`${esc(employee.name)} · 接入设置`:'添加员工'}</h2>
+        ${employee?'':'<label><span>名字</span><input name="name" required maxlength="40"></label>'}
+        <fieldset class="ws-connections"><legend>接入方式</legend>
+          <label class="ws-connection-option"><input type="radio" name="connection" value="local"${initialMode==='local'?' checked':''}><span><b>本机</b><small>使用本机的 Claude Code、Codex 或已配置的本地模型服务</small></span></label>
+          <label class="ws-connection-option"><input type="radio" name="connection" value="api"${initialMode==='api'?' checked':''}><span><b>API 接入</b><small>使用配置好密钥的模型服务</small></span></label>
+        </fieldset><p class="muted" data-connection-hint></p>
+        <label><span data-model-label>工具 / 模型</span><select name="type" required></select></label><p class="muted" data-model-hint></p>
+        ${employee?'<p class="muted">保存后用于这位员工后续的讨论和交付。姓名、岗位及历史记录保留。</p>':'<label><span>岗位</span><select name="post"><option value="frontend">前端开发</option><option value="backend">后端开发</option><option value="test">测试</option><option value="writing">文案写作</option><option value="general">通用</option></select></label><label><span>专长</span><input name="persona"></label>'}`,
+        f=>api(employee?`/api/workspace/employees/${enc(employee.id)}/connection`:'/api/workspace/employees',Object.fromEntries(f)),employee?'保存接入设置':'添加员工');
+      const form=d.querySelector('form'),select=form.elements.type,submit=d.querySelector('[type=submit]');
+      function showProvider() {
+        const mode=form.elements.connection.value,p=models.providers[models.connections[mode][select.value]];
+        const ready=!!p&&(models.fake||p.configured);
+        submit.disabled=!ready;
+        d.querySelector('[data-model-hint]').textContent=p?`${p.model} · ${p.hint}${!ready&&mode==='api'?'。在项目的 .env 中配置相应密钥，再重启工作室。':''}`:'没有可用的接入配置。';
+      }
+      function showMode() {
+        const mode=form.elements.connection.value,last=select.value||currentType;
+        const entries=Object.entries(models.connections[mode]).filter(([type])=>type===currentType||!(mode==='local'&&type==='gpt')&&!(mode==='api'&&type==='codex'));
+        select.innerHTML=entries.map(([type,id])=>{const p=models.providers[id];return `<option value="${esc(type)}">${esc(p.name)}${!models.fake&&!p.configured?'（未配置）':''}</option>`;}).join('');
+        select.value=entries.some(([type])=>type===last)?last:entries.find(([,id])=>models.fake||models.providers[id].configured)?.[0]||entries[0]?.[0]||'';
+        d.querySelector('[data-model-label]').textContent=mode==='local'?'本机工具 / 模型':'API 模型';
+        d.querySelector('[data-connection-hint]').textContent=mode==='local'?'Claude Code 和 Codex 使用本机登录配置，仍可能访问云端模型；本机不等于离线运行。':'API 使用服务端已有的密钥配置，模型用量按提供商计费。';
+        showProvider();
+      }
+      for(const radio of form.querySelectorAll('[name=connection]'))radio.onchange=showMode;
+      select.onchange=showProvider;showMode();
+    } catch(e) { notice(e.message,true); }
+  }
+  $('#ws-hire').onclick=()=>employeeDialog();
   $('#ws-filter').onchange=e=>{filter=e.target.value;selected=null;lastDetail='';render();};
   root.addEventListener('click',ev=>{
     const b=ev.target.closest('button');if(!b)return;
+    if(b.dataset.employeeConnection)employeeDialog(data.employees.find(e=>e.id===b.dataset.employeeConnection));
     if(b.dataset.view)setView(b.dataset.view);
     if(b.dataset.select){selected=b.dataset.select;lastDetail='';setView(root.dataset.view==='discussion'?'discussion':'tasks');render();}
     if(b.dataset.retryDiscussion)action(b,()=>api(`/api/workspace/discussions/${b.dataset.retryDiscussion}/retry`,{}));

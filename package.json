@@ -1,6 +1,6 @@
 {
   "name": "ai-studio",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "description": "AI 工作室：多 AI 员工协作的本地公司系统（代码库、文档库、数据库、事务记录）",
   "main": "server.js",
