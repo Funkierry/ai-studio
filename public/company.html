@@ -92,6 +92,8 @@ table.data td.n{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
 .sql textarea{flex:1;min-width:240px;min-height:64px;font-family:var(--font-mono);font-size:13px}
 .err{color:var(--bad);font-size:13px}
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--panel);border:2px solid var(--ok);padding:7px 14px;font-size:13px;z-index:20}
+.history-filters{display:flex;flex-wrap:wrap;gap:12px;align-items:end}.history-filters label{display:grid;gap:4px;font-size:12px;color:var(--muted);max-width:100%}.history-filters input,.history-filters select{max-width:100%;background:var(--bg);border:2px solid var(--line);padding:5px;color:var(--text)}
+.history-message{padding:16px 0;border-bottom:1px solid var(--line);display:grid;gap:8px}.history-body{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8}.history-message .btn{justify-self:start}#history-context{background:var(--panel);color:var(--text);border:2px solid var(--line);width:min(850px,94vw);max-height:85vh;overflow:auto}#history-context::backdrop{background:#0009}#history-context h3{margin-top:18px}
 </style>
 </head>
 <body>
@@ -105,6 +107,7 @@ table.data td.n{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
   <a href="#docs" data-tab="docs">文档库</a>
   <a href="#db" data-tab="db">数据库</a>
   <a href="#records" data-tab="records">事务记录</a>
+  <a href="#chat" data-tab="chat">协作聊天记录</a>
 </nav>
 <main id="view"></main>
 <div class="toast" id="toast" hidden></div>
@@ -279,10 +282,10 @@ async function kpis(){
     $('#kpis').innerHTML=k.map(([t,v])=>`<div class="kpi"><span class="label">${t}</span><b class="num">${v}</b></div>`).join('');
   }catch{ $('#kpis').innerHTML='<span class="err">连不上公司后端，请先运行 node server.js</span>'; }
 }
-const VIEWS={git:gitView,docs:docsView,db:dbView,records:recordsView};
+const VIEWS={git:gitView,docs:docsView,db:dbView,records:recordsView,chat:async()=>{const {mountHistory}=await import('/chat-history.js');await mountHistory(view);}};
 async function route(){
   // #docs/<encoded path> opens that document directly
-  const [head,...rest]=location.hash.slice(1).split('/');
+  const [head,...rest]=location.hash.slice(1).split('?')[0].split('/');
   const tab=VIEWS[head]?head:'git';
   if(tab==='docs'&&rest.length){D.path=decodeURIComponent(rest.join('/'));D.version=null;D.editing=false;}
   if(tab==='git'&&rest.length){G.repo=decodeURIComponent(rest[0]);G.ref=rest[1]?decodeURIComponent(rest[1]):'main';G.sub=rest[2]==='prs'?'prs':rest[2]==='log'?'log':'tree';}

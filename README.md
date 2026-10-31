@@ -123,6 +123,22 @@ DeepSeek 员工在办公室和头像中共用 `public/assets/deepseek-girl-anima
 
 ## 公司系统里有什么
 
+### 查询 AI 协作聊天记录
+
+办公室顶部点「查询协作记录」，或打开 `/company.html#chat`。可按项目、参与员工、正文关键词、消息类型和时间组合筛选；结果区分真实模型产出、人工消息、系统记录、测试替身及未标记来源。点击消息可查看原始提问、回复链和同项目相邻消息。导出会包含全部匹配记录，不限于当前页。
+
+其他 AI 或脚本可以使用只读工具，返回结构化 JSON，不触发模型调用：
+
+```sh
+node scripts/query-chat.js --project 1 --q 验收口令 --all
+node scripts/query-chat.js --context 4
+node scripts/query-chat.js --url http://localhost:5301 --project 1 --all --out E:/CodexWorkspace/Outputs/chat-history.json
+```
+
+HTTP 接口：`GET /api/collaboration/messages`（参数 `project`、`participant`、`sender`、`q`、`kind`、`since`、`until`、`limit`、`before`、`snapshot`）；`GET /api/collaboration/messages/:id/context`；`GET /api/collaboration/filters`。日期使用带时区的 ISO 时间。分页上限 200 条，用响应的 `nextBefore` 和 `snapshot` 继续查询，避免新消息造成重复或遗漏。关键词按字面匹配，百分号和下划线不作为通配符。参与员工筛选匹配直接发送者或接收者，不推断群发消息的已读成员。
+
+2026-10-31 实测：Claude Code 与 DeepSeek API 在非模拟模式下完成 3 次讨论和 2 次文档交付。Claude 先提问，DeepSeek 自行生成英文验收口令；Claude 文档原样引用该口令，DeepSeek 读取上游文档后逐字核对。8 条消息、回复关联和两份交付均已持久化。此实测验证了跨模型讨论与文档交接；代码失败自动返工另由隔离回归测试覆盖，不等同于已经验证任意真实代码任务的质量。旧项目没有保存的聊天不会被补造。
+
 | 系统 | 存在哪 | 内容 |
 |---|---|---|
 | 代码库 | `data/repos/` | 每个项目、每个代码类订单一个 Git 仓库；项目里每个开发分工一个分支和合并请求，测试在包含上游代码的独立分支真实运行，验收时集成验证后合并并打版本标签 |

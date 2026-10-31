@@ -19,6 +19,7 @@ const co = createCompany(DATA);
 const { createExecution } = require('./lib/execution');
 const { createPreview } = require('./lib/preview');
 const execution = createExecution(co);
+const history = require('./lib/chat-history').createChatHistory(co.executionStore);
 const preview = createPreview(co);
 execution.kick();
 
@@ -29,6 +30,9 @@ const legacy = () => { throw Object.assign(new Error('执行已迁移到服务�
 on('GET', '/api/state', () => co.state());
 on('GET', '/api/summary', () => co.summary());
 on('GET', '/api/models', () => co.models());
+on('GET', '/api/collaboration/filters', () => history.filters());
+on('GET', '/api/collaboration/messages', (b,p,q) => history.search(Object.fromEntries(q)));
+on('GET', '/api/collaboration/messages/:id/context', (b,p) => history.context(p.id));
 on('GET', '/api/workspace', () => ({ ...execution.snapshot(), previewBase: preview.url(), version: require('./package.json').version }));
 on('GET', '/api/workspace/projects/:id/messages', (b,p,q) => execution.messages(+p.id, {after:Math.max(0,Number(q.get('after'))||0),before:Math.max(0,Number(q.get('before'))||0)}));
 on('POST', '/api/workspace/projects/:id/messages', (b,p) => execution.postMessage(+p.id,b));

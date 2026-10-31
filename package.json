@@ -1,12 +1,13 @@
 {
   "name": "ai-studio",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "description": "AI 工作室：多 AI 员工协作的本地公司系统（代码库、文档库、数据库、事务记录）",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "chat:query": "node scripts/query-chat.js"
   },
   "engines": {
     "node": ">=22.13"
