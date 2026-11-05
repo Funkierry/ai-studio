@@ -87,3 +87,18 @@ test('connection changes reject invalid options and cannot change an in-flight e
   assert.throws(()=>ex.updateEmployeeConnection(e.id,{type:'gpt',connection:'api'}),/仍在执行/);
   assert.equal(ex.snapshot().employees.find(x=>x.id===e.id).profile.connection,'local');
 });
+
+test('name, post and specialty can change at any time without touching the connection or the record',t=>{
+  mockProviders(t,['anthropic']);
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'studio-profile-')),co=createCompany(root),ex=createExecution(co);
+  t.after(()=>{ex.close();co.close();});ex.close();
+  const e=ex.addEmployee({name:'旧名字',type:'claude',connection:'local',post:'writing',persona:'旧专长'});
+  co.executionStore.prepare("UPDATE employees SET spent=7 WHERE id=?").run(e.id);
+  co.executionStore.prepare("INSERT INTO jobs(id,employee,status) VALUES('busy',?,'running')").run(e.id);
+  ex.updateEmployee(e.id,{name:' 新名字 ',post:'pm',persona:' 擅长写需求 '});
+  const saved=ex.snapshot().employees.find(x=>x.id===e.id);
+  assert.equal(saved.name,'新名字');assert.equal(saved.profile.post,'pm');assert.equal(saved.profile.postLabel,'产品经理');
+  assert.equal(saved.profile.persona,'擅长写需求');assert.equal(saved.profile.connection,'local');assert.equal(saved.spent,7);
+  assert.throws(()=>ex.updateEmployee(e.id,{name:'  '}),/姓名/);
+  assert.throws(()=>ex.updateEmployee('nobody',{name:'谁'}),/不存在/);
+});

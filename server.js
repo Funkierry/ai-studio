@@ -38,6 +38,7 @@ on('GET', '/api/workspace/projects/:id/messages', (b,p,q) => execution.messages(
 on('POST', '/api/workspace/projects/:id/messages', (b,p) => execution.postMessage(+p.id,b));
 on('POST', '/api/workspace/discussions/:id/retry', (b,p) => execution.retryDiscussion(+p.id));
 on('POST', '/api/workspace/employees', b => execution.addEmployee(b));
+on('POST', '/api/workspace/employees/:id', (b,p) => execution.updateEmployee(p.id,b));
 on('POST', '/api/workspace/employees/:id/connection', (b,p) => execution.updateEmployeeConnection(p.id,b));
 on('POST', '/api/workspace/projects/:id/start', (b, p) => execution.createJobs(+p.id));
 on('POST', '/api/workspace/projects/:id/pause', (b, p) => execution.pause(+p.id, !!b.paused));
@@ -116,4 +117,5 @@ http.createServer(async (req, res) => {
 }).listen(PORT, '127.0.0.1', () => {
   console.log(`AI 工作室已启动：http://localhost:${PORT}`);
   console.log(`公司数据目录：${DATA}`);
+  require('./lib/providers/cli').warm();
 });

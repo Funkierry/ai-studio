@@ -6,8 +6,9 @@ const CLIPS = {
   work: { row: 2, durations: [.18, .18, .18, .18] },
 };
 export function characterFrame(who, seconds, reducedMotion = false) {
-  const mode = who?.path?.length ? 'walk'
-    : who?.writing || who?.job?.phase === 'run' ? 'work' : 'idle';
+  const mode = who?.path?.length || who?.held ? 'walk'
+    : who?.writing?.talk ? 'idle'
+      : who?.writing || who?.job?.phase === 'run' ? 'work' : 'idle';
   const clip = CLIPS[mode];
   if (reducedMotion) return clip.row * 4;
   const seed = [...(who?.name || '')].reduce((sum, char) => sum + char.codePointAt(0), 0) % 997 / 997;

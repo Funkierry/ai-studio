@@ -7,8 +7,12 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="/workspace.css">
+<script>document.documentElement.classList.add('booting')</script>
 <style>
+/* the old page must not flash while the app finds out whether the company backend is there */
+html.booting header.top,html.booting main.layout{visibility:hidden}
 /* Layout: status bar on top; left = pixel office + work board, right = what waits for you + staff. One committed night-shift palette. */
 :root{
   --bg:#1b1824;
@@ -76,7 +80,7 @@ a.btn{display:inline-block;color:var(--text);text-decoration:none}
 
 .stage-wrap{padding:6px;position:relative}
 .stage{position:relative;width:100%;aspect-ratio:384/224;max-width:100%;background:#57506a}
-.stage canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:manipulation}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:manipulation;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 #cv{image-rendering:pixelated}
 .overlay{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .room-label{position:absolute;font-size:clamp(8px,1.15vw,11px);padding:1px 5px;background:rgba(27,24,36,.72);color:var(--text);white-space:nowrap;letter-spacing:.06em}
@@ -491,7 +495,11 @@ const MEET=[{x:24,y:58},{x:88,y:58}].map(p=>({...p,exit:[{x:p.x,y:98},{x:56,y:98
 const QUEUE=[303,285,267,249,231].map(x=>({x,y:117,exit:[],cx:x}));
 const LOUNGE=[{x:138,y:168,exit:[],cx:138},{x:176,y:194,exit:[{x:138,y:194}],cx:138},{x:212,y:208,exit:[{x:138,y:208}],cx:138},
   {x:248,y:176,exit:[],cx:248},{x:246,y:206,exit:[],cx:246},{x:160,y:216,exit:[{x:138,y:216}],cx:138},{x:230,y:194,exit:[],cx:248}];
-function route(a,b){return [...a.exit,{x:a.cx,y:CY},{x:b.cx,y:CY},...[...b.exit].reverse(),{x:b.x,y:b.y}]}
+LOUNGE.forEach(s=>{s.area='lounge';});
+function route(a,b){
+  if(a.area&&a.area===b.area) return [{x:b.x,y:b.y}];
+  return [...a.exit,{x:a.cx,y:CY},{x:b.cx,y:CY},...[...b.exit].reverse(),{x:b.x,y:b.y}];
+}
 
 /* ---------- staff ---------- */
 // kinds of AI you can hire; every hire of a kind is a separate person (own name, preferences, experience) on that kind's model
@@ -803,7 +811,7 @@ const planArrivals=()=>{state.arrivals=[10*60+40,12*60+50,14*60+50,16*60+30];};
 state.stats=newStats();
 const clock=()=>{const m=Math.floor(state.minutes);return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')};
 const dirty=()=>{state.dirty=true};
-let officeMotion=null;
+let officeMotion=null,officeSocial=null,spotAt=null;
 
 // opts: id / name / look when restoring someone who already works here
 function hire(type,walkIn=true,opts={}){
@@ -847,8 +855,8 @@ function addLog(e,entry){
   if(e.log.length>80) e.log.shift();
   dirty();
 }
-function say(e,text,kind='say'){
-  e.bubble=text.length>34?text.slice(0,33)+'…':text;e.bubbleKind=kind;e.bubbleT=3.4;
+function say(e,text,kind='say',seconds=3.4){
+  e.bubble=text.length>34?text.slice(0,33)+'…':text;e.bubbleKind=kind;e.bubbleT=seconds;
 }
 function spend(e,tok){
   const cost=tok/1000*e.price*1.5;
@@ -1264,11 +1272,12 @@ function updateEmp(e,s){
   if(s<=0) return;
   e.anim+=s;
   if(e.bubble){e.bubbleT-=s;if(e.bubbleT<=0) e.bubble=null;}
+  if(e.held) return;
   if(e.path.length){
     const p=e.path[0],dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy),step=38*s;
     if(d<=step){e.x=p.x;e.y=p.y;e.path.shift();}
     else{e.x+=dx/d*step;e.y+=dy/d*step;}
-  }else if(!busy(e)&&!e.helping){
+  }else if(!busy(e)&&!e.helping&&!e.social&&!e.meeting){
     e.wanderT-=s;
     if(e.wanderT<=0){e.wanderT=8+Math.random()*9;const sp=freeLounge();if(sp) goTo(e,sp);}
   }
@@ -1380,14 +1389,21 @@ function drawDesk(d){
   R(ctx,'#2a2d3b',d.x+4,d.y+2,2,2);
   R(ctx,'#e6e1ea',d.x+11,d.y+3,8,2);
   if(o) R(ctx,o.shirt,d.x+22,d.y+2,4,4);
+  if(d.cupT>0){R(ctx,'#efe9dc',d.x+19,d.y+5,3,3);R(ctx,'#7a4a2c',d.x+19,d.y+5,3,1);}
 }
 /* ---------- characters: a 12×18 office sprite and a 32×32 portrait drawn from the same look ---------- */
 // sprite: feet at (e.x, e.y); rows run from the hair top (y0) down to the shoes (y0+17)
 function drawPerson(e){
+  const lift=e.drawLift||0;
+  if(!lift){drawBody(e);return;}
+  ctx.fillStyle='rgba(0,0,0,.22)';ctx.fillRect(Math.round(e.x)-4,Math.round(e.y)-1,8,2);
+  ctx.save();ctx.translate(e.held&&!reducedMotion.matches?Math.round(Math.sin(T*16)):0,-lift);drawBody(e);ctx.restore();
+}
+function drawBody(e){
   const art=artOf(e.type,e.variant);
   if(art?.ready){drawArtPerson(e,art);return;}
   const L=e.look,O=e.outfit,x=Math.round(e.x)-6,y=Math.round(e.y)-18;
-  const walking=e.path.length>0,f=walking?Math.floor(e.anim*7)%2:0;
+  const walking=e.path.length>0||e.held,f=walking?Math.floor(e.anim*7)%2:0;
   const typing=(e.writing||(e.job&&e.job.phase==='run'))&&!walking,a=typing?Math.floor(e.anim*6)%2:0;
   const sway=Math.floor(e.anim*2.5)%2,has=k=>L.acc.includes(k);
   const hairR=(hx,hy,w,h,c)=>R(ctx,c||(L.hair2&&hx+w/2>6?L.hair2:L.hair),x+hx,y+hy,w,h);
@@ -1568,6 +1584,7 @@ function drawArtPerson(e,a){
   ctx.drawImage(e.officeArt,x,y,w,h);
   ctx.restore();
   if(e.carry){R(ctx,'#efe9dc',x+w-4,y+h*.65,4,5);R(ctx,'#c3a6ea',x+w-4,y+h*.65,4,1);}
+  if(e.cup){R(ctx,'#efe9dc',x+w-4,y+h*.62,3,4);R(ctx,'#7a4a2c',x+w-4,y+h*.62,3,1);}
   if(state.selected===e)R(ctx,'#f2b544',x,Math.round(e.y)+1,w,1);
   if(state.dropHover===e.id){ctx.strokeStyle='#f2b544';ctx.lineWidth=1;ctx.strokeRect(x-1.5,y-1.5,w+3,h+3);}
 }
@@ -1601,12 +1618,18 @@ function draw(){
     if(j.members.some(m=>m.path.length)) continue;
     link(j.members[0],j.members[1]);
   }
+  for(const e of state.emps) for(const o of [...(e.links||[]),...(e.talkTo||[])]) if(!e.path.length&&!o.path.length) link(e,o);
   // documents in flight between colleagues
   for(const p of state.packets){
     const k=p.t/p.dur,x=p.from.x+(p.to.x-p.from.x)*k,y=p.from.y-10+(p.to.y-p.from.y)*k-Math.sin(Math.PI*k)*18;
     const px=Math.round(x)-3,py=Math.round(y)-3;
     R(ctx,'rgba(0,0,0,.3)',px+1,py+1,7,6);R(ctx,'#efe9dc',px,py,7,6);R(ctx,p.fix?'#ee7b86':'#c3a6ea',px,py,7,2);R(ctx,'#a69fb8',px+1,py+3,5,1);
   }
+  if(held?.spot&&!held.on){
+    const {x,y}=held.spot,c='#f2b544';
+    for(const [dx,dy] of [[-7,-3],[6,-3],[-7,2],[6,2]]) R(ctx,c,x+dx,y+dy,2,1);
+  }
+  drawFx();
 }
 function link(a,b){
   ctx.save();ctx.setLineDash([2,3]);ctx.lineDashOffset=-T*12;ctx.strokeStyle='rgba(195,166,234,.75)';ctx.lineWidth=1;
@@ -1640,30 +1663,37 @@ function buildTags(){
 }
 function statusIcon(e){
   if(e.waiting) return ['!','warn'];
-  if(e.writing) return ['写','work'];
+  if(e.writing&&!e.writing.talk) return ['写','work'];
+  if(e.writing?.talk) return ['议','meet'];
   if(e.job&&e.job.phase==='help') return ['问','meet'];
   if(e.helping) return ['帮','meet'];
   if(e.job&&e.job.phase==='run'&&!e.path.length) return e.job.mode==='meet'?['议','meet']:e.job.mode==='team'?['协','meet']:['…','work'];
   if(e.stamina<25) return ['Zz','tired'];
   return ['',''];
 }
+function place(el,x,y){
+  const at=x.toFixed(1)+','+y.toFixed(1);
+  if(el._at===at) return;
+  el._at=at;el.style.left=pct(x,W);el.style.top=pct(y,H);
+}
 function syncOverlay(){
   const placed=[];
   for(const e of state.emps){
     const t=e.tagEl,b=e.bubEl;
     const art=artOf(e.type,e.variant),height=art?.ready?art.officeHeight+3:21;
-    t.style.left=pct(e.x,W);t.style.top=pct(e.y-height,H);
-    t.classList.toggle('sel',state.selected===e);
+    const top=e.y-height-(e.drawLift||0);
+    place(t,e.x,top);
+    if(t.classList.contains('sel')!==(state.selected===e)) t.classList.toggle('sel');
     const [ic,cls]=statusIcon(e),st=t.firstChild;
     if(st.textContent!==ic){st.textContent=ic;st.className='st '+cls;}
     if(e.bubble){
       if(b.hidden) b.hidden=false;
       if(b.dataset.txt!==e.bubble){b.dataset.txt=e.bubble;b.textContent=e.bubble;b.className='bubble '+e.bubbleKind;}
       // stack bubbles of people standing close together instead of overlapping them
-      const bx=Math.min(Math.max(e.x,46),W-46);let by=e.y-height-9;
+      const bx=Math.min(Math.max(e.x,46),W-46);let by=top-9;
       while(placed.some(p=>Math.abs(p.x-bx)<80&&Math.abs(p.y-by)<15)) by-=15;
       placed.push({x:bx,y:by});
-      b.style.left=pct(bx,W);b.style.top=pct(by,H);
+      place(b,bx,by);
     }else if(!b.hidden) b.hidden=true;
   }
 }
@@ -1674,9 +1704,10 @@ function toLocal(cx,cy){
   if(cx<r.left||cx>r.right||cy<r.top||cy>r.bottom) return null;
   return {x:(cx-r.left)/r.width*W,y:(cy-r.top)/r.height*H};
 }
-function empAt(p){
+function empAt(p,skip){
   let hit=null;
   for(const e of state.emps){
+    if(e===skip) continue;
     const art=artOf(e.type,e.variant),h=art?.ready?art.officeHeight+1:22;
     const halfWidth=art?.ready?art.w/art.h*art.officeHeight/2+1:9;
     if(Math.abs(p.x-e.x)<=halfWidth&&p.y>=e.y-h&&p.y<=e.y+3&&(!hit||e.y>hit.y))hit=e;
@@ -1691,8 +1722,9 @@ function hitTarget(cx,cy){
   if(inRoom(p,ROOMS.work)) return 'work';
   return null;
 }
-cv.addEventListener('pointermove',ev=>{const p=toLocal(ev.clientX,ev.clientY);cv.style.cursor=p&&empAt(p)?'pointer':'default';});
+cv.addEventListener('pointermove',ev=>{if(held) return;const p=toLocal(ev.clientX,ev.clientY);cv.style.cursor=p&&empAt(p)?'grab':'default';});
 cv.addEventListener('click',ev=>{
+  if(skipClick){skipClick=false;return;}
   const p=toLocal(ev.clientX,ev.clientY);if(!p) return;
   const e=empAt(p);
   if(e){
@@ -1711,6 +1743,109 @@ cv.addEventListener('click',ev=>{
   else if(inRoom(p,ROOMS.work)) toast('工位区：把订单拖到空地上，两名空闲员工会分工协作、互相审查。');
   else if(inRoom(p,ROOMS.boss)) toast('这是你的办公室。员工需要确认时会到门口排队。');
 });
+
+/* ---------- long press to pick someone up (presentation only: tasks and costs are not touched) ---------- */
+const HOLD_MS=280,FOOT=14;
+let press=null,held=null,skipClick=false,spotBeside=null;
+const fx=[];
+const SHAPES={
+  heart:[['.##.##.','#######','#######','.#####.','..###..','...#...'],'#ee7b86'],
+  note:[['..###','..#.#','..#.#','###.#','##.##'],'#c3a6ea'],
+  star:[['...#...','..###..','#######','.#####.','.#.#.#.'],'#f2b544'],
+  check:[['.....##','....##.','##.##..','.###...','..#....'],'#78cfa2'],
+  hand:[['.#.#.#.','.#.#.#.','.#####.','######.','.#####.','..###..'],'#f6d7b0'],
+  steam:[['.#','#.','.#'],'#e8e4ef'],
+  dust:[['##','##'],'#b9b2c8'],
+};
+function emote(e,kind){
+  const y=e.y-(artOf(e.type,e.variant)?.officeHeight||20)-4;
+  const add=(x,yy,vx,vy,dur)=>{if(fx.length<90) fx.push({kind,x,y:yy,vx,vy,t:0,dur});};
+  if(kind==='dust'){for(const d of [-1,1]) add(e.x+d*5,e.y-1,d*16,-5,.35);return;}
+  if(kind==='star'){for(let i=0;i<6;i++){const a=i/6*Math.PI*2;add(e.x,y,Math.cos(a)*24,Math.sin(a)*14-12,.9);}return;}
+  if(kind==='hand'){add(e.x,y-3,0,-5,.9);return;}
+  for(let i=0;i<(kind==='note'?2:3);i++) add(e.x+(i-1)*7,y+i*2,(i-1)*3,-15,1.1+i*.15);
+  if(!reducedMotion.matches&&kind!=='steam') e.hopT=.45;
+}
+function stepFx(dt){
+  for(const p of [...fx]){p.t+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;if(p.t>=p.dur) fx.splice(fx.indexOf(p),1);}
+  for(const d of allDesks()) if(d.cupT>0) d.cupT-=dt;
+  for(const e of state.emps){
+    e.lift=(e.lift||0)+((e.held?9:0)-(e.lift||0))*Math.min(1,dt*(e.held?16:11));
+    if(e.lift<.2&&!e.held) e.lift=0;
+    if(e.hopT>0) e.hopT=Math.max(0,e.hopT-dt);
+    e.drawLift=Math.round(e.lift+(e.hopT>0?Math.sin(Math.PI*(1-e.hopT/.45))*6:0));
+  }
+}
+function drawFx(){
+  for(const p of fx){
+    const [rows,color]=SHAPES[p.kind];
+    ctx.globalAlpha=Math.min(1,(p.dur-p.t)/(p.dur*.4));ctx.fillStyle=color;
+    const x=Math.round(p.x-rows[0].length/2),y=Math.round(p.y);
+    rows.forEach((row,r)=>[...row].forEach((c,i)=>{if(c==='#') ctx.fillRect(x+i,y+r,1,1);}));
+  }
+  ctx.globalAlpha=1;
+}
+const clampLocal=ev=>{
+  const r=cv.getBoundingClientRect();
+  return {x:Math.min(W-4,Math.max(4,(ev.clientX-r.left)/r.width*W)),y:Math.min(H-4,Math.max(4,(ev.clientY-r.top)/r.height*H))};
+};
+function holdOver(ev){
+  const p=clampLocal(ev),{e}=held;
+  // every sharp change of direction counts: shake someone hard enough and they get dizzy
+  const dx=ev.clientX-held.lastX;
+  if(Math.abs(dx)>6){
+    const dir=Math.sign(dx);
+    if(held.dir&&dir!==held.dir) held.turns++;
+    held.dir=dir;held.lastX=ev.clientX;
+  }
+  e.x=p.x;e.y=Math.min(H-2,p.y+FOOT);
+  const on=empAt(p,e)||null;
+  held.on=on;state.dropHover=on?.id||null;
+  held.spot=on&&spotBeside?spotBeside(e,on):spotAt?spotAt({x:e.x,y:e.y}):null;
+  const hint=officeSocial?.hint(e,on,held.spot?.area);
+  if(hint&&hint!==held.hint&&performance.now()-held.at>800){held.hint=hint;say(e,hint,'think',99);}
+}
+function pickUp(ev){
+  const {e,pid}=press;clearTimeout(press.timer);press=null;
+  try{cv.setPointerCapture(pid);}catch{/* the pointer already ended */}
+  e.held=true;held={e,pid,at:performance.now(),lastX:ev.clientX,dir:0,turns:0,on:null,spot:null,hint:''};
+  cv.style.cursor='grabbing';
+  officeSocial?.pickedUp(e);
+  emote(e,'dust');
+}
+function dropHeld(){
+  const {e,on,spot,turns}=held,land=spot||e.spot,home=e.spot,stay=!busy(e)&&!e.helping&&!e.meeting;
+  held=null;state.dropHover=null;cv.style.cursor='default';
+  e.held=false;e.bubble=null;e.x=land.x;e.y=land.y;
+  if(stay){e.path=[];e.spot=land;e.wanderT=18+Math.random()*12;}
+  else e.path=route(land,home);
+  emote(e,'dust');
+  officeSocial?.dropped(e,{on,area:land.area,dizzy:turns>=6});
+  // the browser sends a click after the pointer lifts; it must not open the employee
+  skipClick=true;setTimeout(()=>{skipClick=false;},60);
+}
+cv.addEventListener('pointerdown',ev=>{
+  if(ev.button!==0||held) return;
+  const p=toLocal(ev.clientX,ev.clientY),e=p&&empAt(p);
+  if(!e) return;
+  const start={clientX:ev.clientX};
+  press={e,pid:ev.pointerId,x:ev.clientX,y:ev.clientY,mouse:ev.pointerType==='mouse',timer:setTimeout(()=>{if(press) pickUp(start);},HOLD_MS)};
+});
+window.addEventListener('pointermove',ev=>{
+  if(press&&ev.pointerId===press.pid&&Math.hypot(ev.clientX-press.x,ev.clientY-press.y)>10){
+    if(press.mouse) pickUp(ev);
+    else{clearTimeout(press.timer);press=null;} // a finger moving before the hold ends is scrolling the page
+  }
+  if(held&&ev.pointerId===held.pid) holdOver(ev);
+});
+const release=ev=>{
+  if(press&&ev.pointerId===press.pid){clearTimeout(press.timer);press=null;}
+  if(held&&ev.pointerId===held.pid) dropHeld();
+};
+window.addEventListener('pointerup',release);
+window.addEventListener('pointercancel',release);
+cv.addEventListener('touchmove',ev=>{if(held) ev.preventDefault();},{passive:false});
+cv.addEventListener('contextmenu',ev=>{if(held||press) ev.preventDefault();});
 
 /* ---------- order drag ---------- */
 const ghost=$('#ghost');
@@ -2500,29 +2635,55 @@ function restore(saved){
 }
 async function boot(){
   drawBG();buildRoomLabels();
+  const moveTo=(e,spot)=>{
+    if(e.spot===spot) return;
+    // Finish the current route before changing destination; never jump across a room.
+    if(e.path.length){e.path.push(...route(e.spot,spot));e.spot=spot;}
+    else goTo(e,spot);
+  };
+  const idleSpot=e=>freeLounge()||LOUNGE[state.emps.indexOf(e)%LOUNGE.length];
+  let meetSpot;
+  try{
+    const social=await import('./office-social.js');
+    ({spotAt}=social);meetSpot=i=>social.MEET_SPOTS[i%social.MEET_SPOTS.length];
+    spotBeside=(a,b)=>{
+      const near=side=>spotAt({x:b.x+side*20,y:b.y+2}),side=a.x<=b.x?-1:1;
+      const first=near(side);
+      return Math.hypot(first.x-b.x,first.y-b.y)<34?first:near(-side);
+    };
+    officeSocial=social.createOfficeSocial({
+      employees:()=>state.emps,free:e=>!busy(e)&&!e.helping&&!e.meeting,beside:spotBeside,
+      walk:(e,spot)=>{e.path=route(spotAt({x:e.x,y:e.y}),spot);e.spot=spot;},
+      halt:e=>{const here=spotAt({x:e.x,y:e.y});e.path=[{x:here.x,y:here.y}];e.spot=here;},
+      coffeeSpot:()=>spotAt({x:244,y:164}),leave:e=>moveTo(e,idleSpot(e)),say,emote
+    });
+  }catch{/* opened without a server: people can still be picked up and go back where they were */}
   const saved=await API.boot();
+  if(!API.on) document.documentElement.classList.remove('booting');
   if(API.on) MODELS=await fetch('/api/models',{cache:'no-store'}).then(r=>r.json()).catch(()=>null);
   applyCustomTypes();
   if(API.on){
     API.runtimeOwned=true;
     document.querySelector('header.top').hidden=true;
     document.querySelector('main.layout').hidden=true;
+    document.documentElement.classList.remove('booting');
     const office=document.querySelector('.stage-wrap');
-    cv.setAttribute('aria-label','像素工作室：点击员工查看真实任务，点击机房或档案室打开代码和文档');
-    document.querySelector('.proto-flag').textContent='办公室视图 · 执行状态来自服务端';
+    cv.setAttribute('aria-label','像素工作室：点击员工查看真实任务，长按员工可以拖动，点击机房或档案室打开代码和文档');
+    document.querySelector('.proto-flag').hidden=true;
     state.unlocked.server=true;state.unlocked.archive=true;drawBG();buildRoomLabels();
     const {createOfficeMotion}=await import('./office-motion.js');
     officeMotion=createOfficeMotion({
       employees:()=>state.emps,
-      move:(e,spot)=>{
-        if(e.spot===spot) return;
-        // Finish the current route before changing destination; never jump across a room.
-        if(e.path.length){e.path.push(...route(e.spot,spot));e.spot=spot;}
-        else goTo(e,spot);
-      },
+      move:moveTo,
       say,
-      handoff:(from,to)=>sendPacket(from,to,null,false,null),
-      idleSpot:e=>freeLounge()||LOUNGE[state.emps.indexOf(e)%LOUNGE.length],
+      handoff:(from,to)=>{sendPacket(from,to,null,false,null);officeSocial?.handoff(from,to);},
+      idleSpot,meetSpot,
+      speech:async j=>{
+        const {messages}=await fetch(`/api/workspace/projects/${j.project_id}/messages`,{cache:'no-store'}).then(r=>r.json());
+        const body=messages.filter(m=>m.sender===j.employee).at(-1)?.body||'';
+        return body.split('\n').map(l=>l.replace(/[#>*`_-]+/g,'').trim()).find(Boolean)||'';
+      },
+      react:(kind,team)=>{if(kind==='accepted') officeSocial?.celebrate(team);else if(kind==='failed'&&team[0]) officeSocial?.comfort(team[0]);},
       reviewSpot:e=>QUEUE[state.emps.indexOf(e)%QUEUE.length],
       stepEmployee:updateEmp,
       stepPackets:dt=>{for(const p of [...state.packets]){p.t+=dt;if(p.t>=p.dur)state.packets=state.packets.filter(x=>x!==p);}}
@@ -2540,7 +2701,7 @@ async function boot(){
       officeMotion.sync(s);
     };
     const {mountWorkspace}=await import('./workspace.js');
-    await mountWorkspace({office,models:MODELS,onSnapshot:sync,avatar:s=>{const e=empOf(s.id);return e?avatarEl(e,40):document.createElement('span');}});
+    await mountWorkspace({office,models:MODELS,onSnapshot:sync,defaultName:type=>TYPES[type]?nextName(type):'',avatar:s=>{const e=empOf(s.id);return e?avatarEl(e,40):document.createElement('span');}});
     return;
   }
   // one line per kind of employee: which agent or API really writes for them
@@ -2561,6 +2722,7 @@ boot();
 let last=performance.now(),acc=0;
 setInterval(()=>{
   const now=performance.now();let dt=Math.min(1.5,(now-last)/1000);last=now;T+=dt;acc+=dt;
+  stepFx(dt);officeSocial?.step(dt);
   if(API.runtimeOwned){
     while(dt>0){const d=Math.min(.1,dt);officeMotion?.step(d);dt-=d;}
     return;
@@ -2568,11 +2730,16 @@ setInterval(()=>{
   while(dt>0){const d=Math.min(.1,dt);update(d);dt-=d;}
   if(acc>.25){acc=0;renderHeader();if(state.dirty){state.dirty=false;renderStaff();renderActive();}}
 },40);
-function frame(){
-  draw();syncOverlay();
-  const t=performance.now()/1000;
-  for(const cv of artEls){if(cv.isConnected) paintArt(cv,t);else artEls.delete(cv);}
+// People move 25 times a second, so repainting on every screen refresh only burns time
+// that clicks and transitions need. Someone being dragged follows the pointer at full speed.
+let lastPaint=0;
+function frame(now){
   requestAnimationFrame(frame);
+  if(now-lastPaint<(held?14:30)) return;
+  lastPaint=now;
+  if(!API.runtimeOwned||document.getElementById('workspace')?.dataset.view==='office'){draw();syncOverlay();}
+  const t=now/1000;
+  for(const cv of artEls){if(cv.isConnected) paintArt(cv,t);else artEls.delete(cv);}
 }
 requestAnimationFrame(frame);
 })();
