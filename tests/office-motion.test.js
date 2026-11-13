@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const motionModule = import('../public/office-motion.js');
+const motionModule = import('../public/office/motion.js');
 
 async function fixture() {
   const {createOfficeMotion} = await motionModule;
@@ -104,3 +104,31 @@ test('accepting and failing are told apart from what was already true when the p
   motion.sync(snap('review','done'));motion.sync(snap('done','done'));
   assert.deepEqual(reactions.at(-1),['accepted',['dev']]);
 });
+
+test('what was said in the project chat flies to whoever it was for; a change request flies from whoever asked',async()=>{
+  const {createOfficeMotion}=await motionModule;
+  const staff=['dev','qa','pm'].map(id=>({id,name:id,x:0,y:0,path:[],anim:0,desk:{seat:{name:`${id}-desk`}}}));
+  const mails=[],said=[];
+  const motion=createOfficeMotion({employees:()=>staff,move(){},say:(e,t)=>said.push([e.id,t]),handoff(){},idleSpot:()=>({}),reviewSpot:()=>({}),stepEmployee(){},stepPackets(){},
+    meetSpot:i=>({name:`table-${i}`}),speech:async j=>({text:'接口我来定',to:j.employee==='dev'?'qa':j.employee==='qa'?'team':'boss'}),
+    mail:(from,to,kind)=>mails.push([from.id||from,to.id||to,kind])});
+  const turns=list=>list.map(([employee,status],i)=>({id:i+1,employee,role_idx:i,status,attempt:1}));
+  const talk=list=>({orders:[],jobs:[],projects:[{id:1,status:'running',roles:[{idx:0,name:'开发',deps:[],who:'dev'},{idx:1,name:'测试',deps:[0],who:'qa'}],discussion:turns(list)}]});
+  motion.sync(talk([['dev','running'],['qa','queued'],['pm','queued']]));
+  motion.sync(talk([['dev','done'],['qa','running'],['pm','queued']]));await new Promise(r=>setImmediate(r));
+  assert.deepEqual(mails,[['dev','qa','talk']]); // one colleague
+  motion.sync(talk([['dev','done'],['qa','done'],['pm','running']]));await new Promise(r=>setImmediate(r));
+  assert.deepEqual(mails.slice(1).sort(),[['qa','dev','talk'],['qa','pm','talk']]); // everyone at the table
+  motion.sync(talk([['dev','done'],['qa','done'],['pm','done']]));await new Promise(r=>setImmediate(r));
+  assert.deepEqual(mails.at(-1),['pm','boss','talk']);
+  // rework: asked for by the boss, then by the colleague who tests
+  mails.length=0;
+  const work=(attempt,feedback)=>({orders:[],projects:[{id:2,status:'running',roles:[{idx:0,name:'开发',deps:[],who:'dev'},{idx:1,name:'测试',deps:[0],who:'qa'}]}],
+    jobs:[{id:'p:2:0',project_id:2,role_idx:0,employee:'dev',status:'running',attempt,input:feedback?{feedback}:{}}]});
+  motion.sync(work(1));assert.deepEqual(mails,[]);
+  motion.sync(work(2,'老板的修改要求：按钮太小'));assert.deepEqual(mails,[['boss','dev','fix']]);
+  motion.sync(work(3,'同事在项目讨论消息 #5 提出的修复要求：接口不对'));
+  assert.deepEqual(mails.at(-1),['qa','dev','fix']);assert.ok(said.some(([who,t])=>who==='qa'&&/这里要改一下/.test(t)));
+  motion.sync(work(3,'同事在项目讨论消息 #5 提出的修复要求：接口不对'));assert.equal(mails.length,2); // not again on every refresh
+});
+

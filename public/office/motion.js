@@ -1,5 +1,5 @@
 // Presentation only: model execution and billing remain entirely on the server.
-export function createOfficeMotion({ employees, move, say, handoff, idleSpot, reviewSpot, stepEmployee, stepPackets, meetSpot, speech, react }) {
+export function createOfficeMotion({ employees, move, say, handoff, idleSpot, reviewSpot, stepEmployee, stepPackets, meetSpot, speech, react, mail }) {
   let seen = new Map();
   let projects = new Map();
   const visits = new Map();
@@ -58,7 +58,15 @@ export function createOfficeMotion({ employees, move, say, handoff, idleSpot, re
       } else if (prev?.status === 'running' || ['failed', 'interrupted'].includes(j.status)) {
         if (gathered.has(e.id) || left.has(e.id)) { e.writing = null; e.talkTo = null; } else rest(e);
         say(e, j.status === 'failed' ? '这次没完成，请看任务里的原因' : j.status === 'interrupted' ? '调用中断了，需要你确认重试' : j.discussion ? '已在项目群里回复' : '这份完成，已保存交付', j.status === 'done' ? 'say' : 'ask');
-        if (j.discussion && j.status === 'done') speech?.(j).then(text => { if (text) say(e, text, 'say', 6); }).catch(() => {});
+        // what was really said in the project chat is shown above the speaker, and a letter flies to whoever it was for
+        if (j.discussion && j.status === 'done') speech?.(j).then(said => {
+          const text = typeof said === 'string' ? said : said?.text, to = said?.to;
+          if (text) say(e, text, 'say', 6);
+          if (!to || !mail) return;
+          if (to === 'boss') mail(e, 'boss', 'talk');
+          else if (to === 'team') { for (const other of staff) if (other !== e && other.meeting && other.meeting === e.meeting) mail(e, other, 'talk'); }
+          else if (byId.get(to) && byId.get(to) !== e) mail(e, byId.get(to), 'talk');
+        }).catch(() => {});
       }
     }
     for (const [id, j] of running) {
@@ -66,13 +74,19 @@ export function createOfficeMotion({ employees, move, say, handoff, idleSpot, re
       const prev = seen.get(j.id);
       const changed = !prev || prev.status !== 'running' || prev.attempt !== j.attempt;
       const talking = gathered.has(id) && j.discussion;
-      e.writing = talking ? { out: nameOf(s, j), talk: true } : { out: nameOf(s, j) }; e.waiting = false; e.carry = false;
+      e.writing = talking ? { out: nameOf(s, j), talk: true, project: j.project_id } : { out: nameOf(s, j), project: j.project_id || null }; e.waiting = false; e.carry = false;
       e.talkTo = talking ? [...gathered].filter(([other, p]) => other !== id && p === gathered.get(id)).map(([other]) => byId.get(other)) : null;
       if (!changed) continue;
       if (!talking) move(e, e.desk.seat);
       say(e, `${j.attempt > 1 ? '按修改意见继续：' : '开始：'}${nameOf(s, j)}`, 'think');
       const p = s.projects.find(p => p.id === j.project_id);
       const role = p?.roles.find(r => r.idx === j.role_idx);
+      // sent back for changes: the request visibly travels from whoever asked for it
+      if (mail && j.attempt > 1 && !j.discussion) {
+        const why = String(j.input?.feedback || ''), last = p?.roles.at(-1);
+        const asker = why.startsWith('老板') || !p ? 'boss' : byId.get(last?.who);
+        if (asker && asker !== e) { mail(asker, e, 'fix'); if (asker !== 'boss') say(asker, `${e.name}，这里要改一下`, 'say'); }
+      }
       for (const dep of j.discussion ? [] : role?.deps || []) {
         const upstream = s.jobs.find(u => u.project_id === j.project_id && u.role_idx === dep && u.status === 'done');
         const from = upstream && byId.get(upstream.employee);

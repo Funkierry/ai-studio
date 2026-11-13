@@ -1,7 +1,8 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const socialModule = import('../public/office-social.js');
+const socialModule = import('../public/office/social.js');
+const worldModule = import('../public/office/world.js');
 
 async function fixture(names=['a','b']) {
   const {createOfficeSocial}=await socialModule;
@@ -15,7 +16,7 @@ async function fixture(names=['a','b']) {
 }
 
 test('anywhere a pointer lets go, the person lands somewhere they can stand and leave from',async()=>{
-  const {spotAt,AREAS}=await socialModule;
+  const {spotAt,AREAS}=await worldModule;
   for(let x=0;x<=384;x+=6)for(let y=0;y<=224;y+=6){
     const s=spotAt({x,y}),a=AREAS.find(r=>r.key===s.area);
     assert.ok(s.x>=a.x0&&s.x<=a.x1&&s.y>=a.y0&&s.y<=a.y1,`${x},${y}`);

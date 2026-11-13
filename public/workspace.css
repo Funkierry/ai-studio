@@ -1,6 +1,7 @@
 #workspace{max-width:1500px;margin:0 auto;font-size:14px;line-height:1.6}
 #workspace h1{font-size:21px;font-family:var(--font-pixel)}#workspace h2{font-size:17px}#workspace h3{font-size:15px}
 #workspace .muted{color:var(--muted);font-size:13px}
+#workspace small{font-size:12px}
 
 /* top bar: name, views, money, files, new work; one row */
 #workspace .ws-top{display:flex;align-items:center;gap:10px 18px;flex-wrap:wrap;margin-bottom:14px;padding:8px 16px}
@@ -8,68 +9,152 @@
 #workspace .ws-views button{padding:6px 12px 9px;color:var(--muted)}
 #workspace .ws-views button:hover{color:var(--text)}
 #workspace .ws-views button[aria-pressed=true]{color:var(--text)}
-#workspace .ws-ink{position:absolute;left:0;bottom:0;width:0;height:3px;background:var(--accent);pointer-events:none;transition:transform .2s cubic-bezier(.2,.8,.3,1),width .2s cubic-bezier(.2,.8,.3,1)}
+#workspace .ws-views kbd{margin-left:6px;padding:0 4px;border:1px solid var(--line);border-radius:3px;font:11px ui-monospace,Consolas,monospace;color:var(--muted);opacity:.7}
+#workspace .ws-ink{position:absolute;left:0;bottom:0;width:0;height:3px;background:var(--accent);pointer-events:none;transition:transform .2s var(--ease),width .2s var(--ease)}
 #workspace .ws-spent{white-space:nowrap}
 
 /* main area on the left, what needs doing on the right; the right side never moves between views */
 #workspace .ws-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;align-items:start}
 #workspace .ws-main,#workspace .ws-side{display:flex;flex-direction:column;gap:14px;min-width:0}
+#workspace .ws-main{view-transition-name:ws-main}
 #workspace .ws-panel{padding:14px 16px;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:8px}
 #workspace .ws-panel-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
 #workspace .ws-foot{font-size:12px;margin:0 2px}
-#workspace .ws-office,#workspace #ws-detail,#workspace #ws-chat{display:none}
-#workspace[data-view=office] .ws-office,#workspace[data-view=tasks] #ws-detail,#workspace[data-view=discussion] #ws-chat{display:block}
+#workspace [data-pane]{display:none}
+#workspace[data-view=office] [data-pane=office],#workspace[data-view=tasks] [data-pane=tasks],#workspace[data-view=discussion] [data-pane=discussion]{display:block}
+/* switching views: the old page leaves towards one side and the new one arrives from the other */
+::view-transition-old(ws-main),::view-transition-new(ws-main){animation-duration:.2s;animation-timing-function:var(--ease);height:auto;transform-origin:top}
+::view-transition-old(ws-main){animation-name:ws-out}
+::view-transition-new(ws-main){animation-name:ws-in}
+@keyframes ws-out{to{opacity:0;transform:translateX(-18px)}}
+@keyframes ws-in{from{opacity:0;transform:translateX(18px)}}
+:root:has(#workspace[data-dir=back])::view-transition-old(ws-main){animation-name:ws-out-back}
+:root:has(#workspace[data-dir=back])::view-transition-new(ws-main){animation-name:ws-in-back}
+@keyframes ws-out-back{to{opacity:0;transform:translateX(18px)}}
+@keyframes ws-in-back{from{opacity:0;transform:translateX(-18px)}}
+::view-transition-group(root){animation-duration:0s}
+
+/* colour marks: a project keeps one colour on the list, the task page and the wall in the office; a person keeps one too */
+#workspace .ws-dot{display:inline-block;flex:none;width:9px;height:9px;background:var(--c,var(--muted));box-shadow:0 0 0 2px rgba(0,0,0,.25)}
+#workspace .ws-avatar{display:inline-flex;flex:none;border-bottom:3px solid var(--c,transparent)}
+#workspace .ws-avatar canvas{display:block}
+#workspace .ws-you{display:inline-grid;place-items:center;flex:none;width:28px;height:28px;background:var(--accent);color:var(--bg);font-family:var(--font-pixel);font-weight:700}
+#workspace .ws-you.system{background:var(--panel-2);color:var(--muted);border:1px solid var(--line)}
 
 /* waiting on the boss */
 #workspace .ws-inbox{border-color:var(--accent)}
 #workspace .ws-count{display:inline-block;min-width:20px;padding:0 6px;margin-left:4px;border-radius:10px;background:var(--accent);color:var(--bg);font-size:13px;text-align:center}
-#workspace .ws-inbox .ws-task small{color:var(--accent);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-#workspace .ws-callout{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:10px 12px;margin:12px 0;border:1px solid var(--accent);border-radius:6px;background:var(--bg)}
+#workspace .ws-need{flex:none;padding:0 7px;border-radius:3px;font-size:12px;background:var(--accent);color:var(--bg);white-space:nowrap}
+#workspace .ws-need.fix{background:var(--bad)}
+#workspace .ws-need.answer{background:var(--info)}
+#workspace .ws-inbox .ws-task small{color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#workspace .ws-callout{display:flex;align-items:center;gap:10px 12px;flex-wrap:wrap;padding:10px 12px;margin:12px 0;border:1px solid var(--accent);border-radius:6px;background:var(--bg)}
+#workspace .ws-callout.fix{border-color:var(--bad)}
+#workspace .ws-callout.answer{border-color:var(--info)}
 #workspace .ws-callout p{flex:1 1 240px;margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
 
 /* work list */
 #workspace .ws-tasks{display:flex;flex-direction:column;gap:6px;margin-top:8px}
 #workspace .ws-list .ws-tasks{max-height:46vh;overflow:auto}
-#workspace .ws-task{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 8px;align-items:center;padding:7px 10px;text-align:left;background:var(--panel-2);border:1px solid var(--line);border-radius:5px;width:100%}
+#workspace .ws-task{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 8px;align-items:center;padding:7px 10px;text-align:left;background:var(--panel-2);border:1px solid var(--line);border-radius:5px;width:100%}
 #workspace .ws-task:hover{border-color:var(--muted)}
 #workspace[data-view=tasks] .ws-task[aria-current=true],#workspace[data-view=discussion] .ws-task[aria-current=true]{border-color:var(--accent);box-shadow:inset 3px 0 var(--accent)}
 #workspace .ws-task b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
-#workspace .ws-task small{grid-column:1/-1;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+#workspace .ws-task small{grid-column:1/-1;color:var(--muted);overflow-wrap:anywhere}
+#workspace .ws-cells{grid-column:1/-1;display:flex;gap:2px;height:4px;margin-top:2px}
+#workspace .ws-cells i{flex:1;max-width:36px;background:#5d5674}
+#workspace .ws-cells .done{background:var(--ok)}#workspace .ws-cells .running{background:var(--info);animation:ws-live 1.1s ease-in-out infinite}
+#workspace .ws-cells :is(.review,.gate){background:var(--accent)}#workspace .ws-cells :is(.failed,.interrupted,.blocked){background:var(--bad)}
+#workspace .ws-cells :is(.queued,.paused){background:#8a84a0}
+@keyframes ws-live{50%{opacity:.45}}
 #workspace #ws-done{margin-top:4px}
 #workspace #ws-done>.ws-task{margin-top:6px}
 #workspace summary{cursor:pointer}
 #workspace #ws-done>summary{color:var(--muted);font-size:13px}
-#workspace .ws-state{display:inline-block;font-size:12px;padding:0 7px;border-radius:3px;background:var(--bg);color:var(--info);white-space:nowrap}
-#workspace .ws-state.failed,#workspace .ws-state.blocked,#workspace .ws-state.interrupted{color:var(--bad)}
-#workspace .ws-state.done{color:var(--ok)}#workspace .ws-state.review{color:var(--accent)}
-#workspace .ws-state.queued,#workspace .ws-state.wait,#workspace .ws-state.paused{color:var(--muted)}
+#workspace .ws-state{display:inline-block;flex:none;font-size:12px;padding:0 7px;border-radius:3px;background:var(--bg);color:var(--info);white-space:nowrap}
+#workspace .ws-state:is(.failed,.blocked,.interrupted){color:var(--bad)}
+#workspace .ws-state.done{color:var(--ok)}#workspace .ws-state:is(.review,.gate){color:var(--accent)}
+#workspace .ws-state:is(.queued,.wait,.paused,.open){color:var(--muted)}
 
-/* task detail */
+/* task page: heading, goal, then the flow */
 #workspace .ws-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-#workspace .ws-goal{white-space:pre-wrap;color:var(--muted);margin:8px 0 0;max-height:7.5em;overflow:auto;overflow-wrap:anywhere}
-#workspace .ws-role{padding:9px 0;border-top:1px solid var(--line)}
-#workspace .ws-role>summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-#workspace .ws-role>summary::before{content:'▸';color:var(--muted);font-size:12px}
-#workspace .ws-role[open]>summary::before{content:'▾'}
-#workspace .ws-role>summary .ws-state{margin-left:auto}
-#workspace .ws-role p{margin:7px 0;overflow-wrap:anywhere}
+#workspace .ws-head .ws-actions{margin:0 0 0 auto}
+#workspace .ws-goal{white-space:pre-wrap;color:var(--muted);margin:8px 0 0;max-height:6.4em;overflow:auto;overflow-wrap:anywhere}
+#workspace .ws-section{margin:18px 0 8px;font-family:var(--font-pixel)}
+#workspace .ws-section small,#workspace .ws-accept h3 small,#workspace .ws-plan-title small{margin-left:8px;color:var(--muted);font-family:var(--font-body);font-weight:400}
 #workspace .ws-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+#workspace .ws-actions:empty{display:none}
 #workspace a{color:var(--info)}#workspace a.btn{font-size:13px;text-decoration:none;white-space:nowrap}
-#workspace .ws-test{padding:8px 10px;background:var(--bg);border-left:3px solid var(--ok);margin:8px 0}
+
+/* the flow: columns from left to right, shares in one column run side by side, each in its owner's colour */
+#workspace .ws-flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:2px 2px 8px}
+#workspace .ws-stage{display:flex;flex-direction:column;justify-content:center;gap:8px;flex:1 1 0;min-width:150px}
+#workspace .ws-arrow{flex:none;align-self:center;width:26px;height:2px;margin:0 3px;background:var(--line);position:relative}
+#workspace .ws-arrow::after{content:'';position:absolute;right:-1px;top:-4px;border:5px solid transparent;border-left-color:var(--line);border-right:0}
+#workspace .ws-step{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 9px;align-items:center;width:100%;padding:8px 10px;text-align:left;
+  background:var(--panel-2);border:1px solid var(--line);border-left:4px solid var(--c,var(--line));border-radius:6px}
+#workspace button.ws-step:hover{border-color:var(--muted);border-left-color:var(--c)}
+#workspace .ws-step[aria-pressed=true]{background:var(--bg);border-color:var(--c);box-shadow:0 0 0 1px var(--c)}
+#workspace .ws-step-text{min-width:0}
+#workspace .ws-step-text b,#workspace .ws-step-text small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#workspace .ws-step-text small,#workspace .ws-step-meta{color:var(--muted)}
+#workspace .ws-step .ws-state{justify-self:start;grid-column:1/-1}
+#workspace .ws-step-meta{grid-column:1/-1;min-height:1.2em}
+#workspace .ws-step.running{animation:ws-work 1.6s ease-in-out infinite}
+@keyframes ws-work{50%{box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 45%,transparent)}}
+#workspace .ws-step.done{border-left-color:color-mix(in srgb,var(--c) 55%,var(--line))}
+#workspace .ws-step:is(.wait,.queued) .ws-avatar{opacity:.55}
+#workspace .ws-step.final{--c:var(--accent);border-style:dashed;border-left-style:solid}
+#workspace .ws-step.final.wait{opacity:.6}
+#workspace .ws-step.final.review{background:color-mix(in srgb,var(--accent) 14%,var(--panel-2))}
+/* the selected share in full */
+#workspace .ws-stepdetail{margin-top:10px;padding:12px 14px;background:var(--bg);border:1px solid var(--line);border-top:3px solid var(--c,var(--line));border-radius:6px}
+#workspace .ws-stephead{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+#workspace .ws-stephead>div{flex:1;min-width:160px}
+#workspace .ws-who{display:flex;align-items:center;gap:8px;padding:4px 8px 4px 4px;border-radius:5px;text-align:left}
+#workspace .ws-who:hover{background:var(--panel-2)}
+#workspace .ws-who b,#workspace .ws-who small{display:block}#workspace .ws-who small{color:var(--info)}
+#workspace .ws-stepdetail p{margin:7px 0;overflow-wrap:anywhere}
+#workspace .ws-summary{white-space:pre-wrap}
+#workspace .ws-test{padding:8px 10px;background:var(--panel);border-left:3px solid var(--ok);margin:8px 0}
 #workspace .ws-test.bad{border-color:var(--bad)}
-#workspace .ws-preview iframe{width:100%;height:420px;border:1px solid var(--line);background:white}
+#workspace .ws-preview{margin-top:10px}
+#workspace .ws-preview iframe{width:100%;height:440px;border:1px solid var(--line);background:white}
+#workspace .ws-startorder{display:flex;align-items:end;gap:10px;margin-top:12px}
+#workspace .ws-startorder label{flex:1;margin:0}
+
+/* acceptance: what to check, then one decision */
+#workspace .ws-accept{margin:14px 0;padding:14px 16px;border:2px solid var(--accent);border-radius:8px;background:color-mix(in srgb,var(--accent) 7%,var(--bg))}
+#workspace .ws-accept h3{font-family:var(--font-pixel);color:var(--accent)}
+#workspace .ws-checks{list-style:none;margin:10px 0;padding:0;display:grid;gap:5px}
+#workspace .ws-checks li{display:flex;align-items:center;gap:8px}
+#workspace .ws-checks i{display:inline-grid;place-items:center;flex:none;width:18px;height:18px;border-radius:50%;font-style:normal;font-size:12px;background:var(--panel-2);color:var(--muted)}
+#workspace .ws-checks .ok i{background:var(--ok);color:var(--bg)}#workspace .ws-checks .bad i{background:var(--bad);color:var(--bg)}
+#workspace .ws-checks .bad{color:var(--bad)}
+#workspace .ws-checks small{color:var(--muted)}
+#workspace .ws-decide{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:12px 0 6px}
+#workspace .ws-decide .btn.primary{padding:8px 18px;font-size:15px}
+#workspace .ws-rate{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+#workspace .ws-stars{display:flex;flex-direction:row-reverse;gap:2px;border:0;padding:0;margin:0}
+#workspace .ws-deliver{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:6px 0}
+#workspace .ws-deliver>span{min-width:11em;color:var(--muted);font-size:13px}
+#workspace .ws-stars label{margin:0;cursor:pointer;font-size:22px;line-height:1;color:var(--line);transition:color .1s,transform .08s}
+#workspace .ws-stars label:active{transform:scale(.9)}
+#workspace .ws-stars input{position:absolute;opacity:0;width:0}
+/* stars are laid out right to left so that picking one also lights the ones before it */
+#workspace .ws-stars label:has(input:checked),#workspace .ws-stars label:has(input:checked)~label{color:var(--accent)}
+#workspace .ws-stars label:has(:focus-visible){outline:2px solid var(--accent)}
 
 /* staff */
 #workspace .ws-person{display:flex;gap:6px;align-items:center;margin:4px -6px}
 #workspace .ws-person-main{display:flex;gap:9px;align-items:center;flex:1;min-width:0;padding:4px 6px;text-align:left;border-radius:5px}
 #workspace .ws-person-main:hover{background:var(--panel-2)}
 #workspace .ws-person canvas{image-rendering:pixelated;flex:none}
-#workspace .ws-person b{font-size:13px}#workspace .ws-person small{display:block;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+#workspace .ws-person b{display:flex;align-items:center;gap:6px;font-size:13px}#workspace .ws-person small{display:block;color:var(--muted);overflow-wrap:anywhere}
 #workspace .ws-person .ws-on{color:var(--info)}
 #workspace .ws-person .link{flex:none;padding:4px 6px}
 
 /* forms */
-#workspace button:disabled{cursor:not-allowed;opacity:.5}
 #workspace textarea,#workspace select,#workspace input{background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:8px;width:100%;font:inherit}
 #workspace textarea{resize:vertical;min-height:70px}
 #workspace label{display:block;margin:10px 0}
@@ -81,14 +166,14 @@
 #workspace .ws-choice{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin:0;cursor:pointer;min-width:0}
 #workspace .ws-choice:has(input:checked){border-color:var(--accent);background:var(--panel-2)}
 #workspace .ws-choice input{width:auto;accent-color:var(--accent);margin-top:5px}
-#workspace .ws-choice span{margin:0;color:var(--text)}#workspace .ws-choice small{display:block;color:var(--muted);font-size:12px}
+#workspace .ws-choice span{margin:0;color:var(--text)}#workspace .ws-choice small{display:block;color:var(--muted)}
 #workspace .ws-choices:disabled{opacity:.55}
 #workspace .ws-check{display:flex;align-items:center;gap:10px}
 #workspace .ws-check input{width:auto}#workspace .ws-check span{margin:0}
 #workspace .form-error{color:var(--bad);white-space:pre-wrap}
 #workspace .form-error:empty{display:none}
-#workspace dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:20px 22px;width:min(620px,95vw);max-height:90vh;overflow:auto;
-  opacity:0;transform:translateY(8px);transition:opacity .15s,transform .15s cubic-bezier(.2,.8,.3,1),overlay .15s allow-discrete,display .15s allow-discrete}
+#workspace dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:20px 22px;width:min(780px,95vw);max-height:92vh;overflow:auto;
+  opacity:0;transform:translateY(8px);transition:opacity .15s,transform .15s var(--ease),overlay .15s allow-discrete,display .15s allow-discrete}
 #workspace dialog[open]{opacity:1;transform:none}
 #workspace dialog::backdrop{background:#09070dc9;opacity:0;transition:opacity .15s,overlay .15s allow-discrete,display .15s allow-discrete}
 #workspace dialog[open]::backdrop{opacity:1}
@@ -96,24 +181,34 @@
   #workspace dialog[open]{opacity:0;transform:translateY(8px)}
   #workspace dialog[open]::backdrop{opacity:0}
 }
-#workspace dialog details>summary{color:var(--info);font-size:13px;margin-top:6px}
+#workspace details>summary{color:var(--info);font-size:13px;margin-top:6px}
+/* the plan inside the new-work window: the same flow as the task page, with a person to pick on every step */
+#workspace .ws-plan{margin:12px 0;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+#workspace .ws-plan-title{font-family:var(--font-pixel);margin-bottom:6px}
+#workspace .ws-step.pick{margin:0;cursor:default}
+#workspace .ws-step.pick b{margin-bottom:3px}
+#workspace .ws-step.pick select{padding:3px 6px;font-size:13px}
+#workspace .ws-plan .ws-stage{min-width:126px}
+#workspace .ws-plan .ws-stage:last-child{flex:0 1 auto;min-width:104px}
+#workspace .ws-plan .ws-arrow{width:16px}
 
-/* notices */
-#workspace .ws-error{white-space:pre-wrap;color:var(--bad);padding:8px 10px;border-left:3px solid var(--bad);background:var(--bg);margin:8px 0}
 /* notices float above the page: one arriving or leaving must not move a button out from under the pointer */
+#workspace .ws-error{white-space:pre-wrap;color:var(--bad);padding:8px 10px;border-left:3px solid var(--bad);background:var(--bg);margin:8px 0}
 #workspace #ws-notice{position:fixed;z-index:40;left:50%;bottom:18px;transform:translateX(-50%);width:min(560px,calc(100vw - 32px))}
-#workspace .ws-notice{display:flex;justify-content:space-between;gap:12px;padding:9px 12px;border:1px solid var(--line);border-radius:6px;color:var(--text);background:var(--panel);box-shadow:0 6px 18px rgba(0,0,0,.4);animation:ws-rise .18s cubic-bezier(.2,.8,.3,1)}
+#workspace .ws-notice{display:flex;justify-content:space-between;gap:12px;padding:9px 12px;border:1px solid var(--line);border-radius:6px;color:var(--text);background:var(--panel);box-shadow:0 6px 18px rgba(0,0,0,.4);animation:ws-rise .18s var(--ease)}
 #workspace #ws-notice .ws-error{color:var(--bad);margin:0}
-@keyframes ws-rise{from{opacity:0;transform:translateY(8px)}}
 #workspace .ws-notice .link{flex:none}
+@keyframes ws-rise{from{opacity:0;transform:translateY(8px)}}
 #workspace .ws-empty{padding:24px 8px;color:var(--muted);text-align:center}
 #workspace .ws-empty .btn{margin-top:8px}
 
 /* project discussion */
 #workspace #ws-messages{max-height:58vh;min-height:220px;overflow:auto;scroll-behavior:auto;padding:8px 2px;overflow-anchor:none}
-#workspace .ws-message{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:8px 0;background:var(--bg);overflow-wrap:anywhere}
-#workspace .ws-message.boss{border-left:3px solid var(--accent)}#workspace .ws-message.employee{border-left:3px solid var(--info)}
-#workspace .ws-message.system{color:var(--muted);font-size:12px;background:transparent}
+#workspace .ws-message{display:flex;gap:10px;align-items:flex-start;margin:10px 0;content-visibility:auto;contain-intrinsic-size:auto 90px}
+#workspace .ws-message-body{flex:1;min-width:0;border:1px solid var(--line);border-left:3px solid var(--c,var(--line));border-radius:8px;padding:8px 12px;background:var(--bg);overflow-wrap:anywhere}
+#workspace .ws-message.boss{flex-direction:row-reverse}
+#workspace .ws-message.boss .ws-message-body{border-left-width:1px;border-right:3px solid var(--accent)}
+#workspace .ws-message.system .ws-message-body{color:var(--muted);font-size:12px;background:transparent;border-style:dashed}
 #workspace .ws-message p{white-space:pre-wrap;margin:6px 0}
 #workspace .ws-message-meta{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
 #workspace .ws-message-meta small{margin-left:auto;color:var(--muted);font-size:11px}
@@ -124,14 +219,12 @@
 #workspace .ws-send label span{margin:0;white-space:nowrap}
 
 /* everything you can press answers immediately */
-html{scrollbar-gutter:stable}
 #workspace button,#workspace a,#workspace summary,#workspace .ws-choice{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
-#workspace .btn,#workspace .ws-task,#workspace .ws-views button,#workspace .ws-person-main,#workspace .link,#workspace .ws-choice{transition:background-color .12s,border-color .12s,color .12s,box-shadow .12s,transform .08s}
+#workspace :is(.btn,.ws-task,.ws-views button,.ws-person-main,.link,.ws-choice,.ws-step,.ws-who){transition:background-color .12s,border-color .12s,color .12s,box-shadow .12s,transform .08s}
 #workspace .btn:hover:not(:disabled){filter:brightness(1.08)}
-#workspace .btn:active:not(:disabled),#workspace .ws-task:active,#workspace .ws-person-main:active{transform:translateY(1px) scale(.99)}
+#workspace :is(.btn:not(:disabled),.ws-task,.ws-person-main,button.ws-step):active{transform:translateY(1px) scale(.99)}
 #workspace .ws-views button:active{transform:translateY(1px)}
 #workspace :is(button,a,summary,input,select,textarea):focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-#workspace .ws-notice .link,#workspace .ws-foot a{transition:color .12s}
 /* a waiting button stays solid so quick actions don't blink; slow ones get a small spinner */
 #workspace button[data-pending]:disabled{opacity:1;cursor:progress}
 #workspace button.ws-loading::after{content:'';display:inline-block;width:.7em;height:.7em;margin-left:.5em;vertical-align:-1px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:ws-spin .7s linear infinite}
@@ -139,12 +232,12 @@ html{scrollbar-gutter:stable}
 /* foldable rows open and close instead of jumping (browsers without this simply snap) */
 @supports (interpolate-size:allow-keywords){
   #workspace{interpolate-size:allow-keywords}
-  #workspace details::details-content{block-size:0;overflow:clip;transition:block-size .17s cubic-bezier(.2,.8,.3,1),content-visibility .17s allow-discrete}
+  #workspace details::details-content{block-size:0;overflow:clip;transition:block-size .17s var(--ease),content-visibility .17s allow-discrete}
   #workspace details[open]::details-content{block-size:auto}
 }
-#workspace .ws-message{content-visibility:auto;contain-intrinsic-size:auto 90px}
 @media(prefers-reduced-motion:reduce){
   #workspace *,#workspace *::before,#workspace *::after,#workspace dialog::backdrop{transition:none!important;animation-duration:.01ms!important}
+  ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none!important}
 }
 
 /* narrow screens: one column, and what waits for you comes first */
@@ -156,8 +249,15 @@ html{scrollbar-gutter:stable}
   #workspace .ws-list{order:1}#workspace .ws-team{order:2}#workspace .ws-foot{order:3}
   #workspace .ws-list .ws-tasks{max-height:none}
 }
-@media(max-width:560px){
+@media(max-width:640px){
   #workspace .ws-choices.kinds,#workspace .ws-row{grid-template-columns:minmax(0,1fr)}
   #workspace .ws-views{order:3;width:100%;margin-right:0}
+  #workspace .ws-views kbd{display:none}
   #workspace h1{margin-right:auto}
+  /* the flow runs top to bottom on a phone */
+  #workspace .ws-flow{flex-direction:column;overflow:visible}
+  #workspace .ws-stage{min-width:0}
+  #workspace .ws-arrow{width:2px;height:16px;margin:3px 0 3px 22px}
+  #workspace .ws-arrow::after{right:-4px;top:auto;bottom:-1px;border:5px solid transparent;border-top-color:var(--line);border-bottom:0}
+  #workspace .ws-head .ws-actions{margin-left:0}
 }

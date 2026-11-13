@@ -1,6 +1,6 @@
 // Updates a panel in place instead of replacing it, so a refresh never swallows
 // a click that is halfway down, moves the caret, resets a scroll or reloads a preview.
-const keyOf = n => n.nodeType === 1 ? n.dataset.select || n.dataset.role || n.id || null : null;
+const keyOf = n => n.nodeType === 1 ? n.dataset.key || n.dataset.select || n.id || null : null;
 const kept = n => n.nodeType === 1 && n.hasAttribute('data-keep');
 const sameKind = (a, b) => a.nodeType === b.nodeType && a.nodeName === b.nodeName;
 
@@ -12,7 +12,8 @@ function syncNode(from, to) {
   if (from.nodeType !== 1) { if (from.nodeValue !== to.nodeValue) from.nodeValue = to.nodeValue; return; }
   if (from.hasAttribute('data-pending')) return; // a button waiting on the server stays as it is until the answer arrives
   syncAttributes(from, to);
-  if (from.nodeName !== 'TEXTAREA') syncChildren(from, to); // what is typed in a box belongs to the person typing
+  // what is typed in a box belongs to the person typing; a slot marked data-fill holds something the page put there (a portrait)
+  if (from.nodeName !== 'TEXTAREA' && !from.hasAttribute('data-fill')) syncChildren(from, to);
 }
 function syncChildren(parent, next) {
   const keyed = new Map();
