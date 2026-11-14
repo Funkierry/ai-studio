@@ -1,41 +1,64 @@
-// The boss's side of the studio: what is waiting, the work and who does which share of it, acceptance, and the project chat.
-// Everything shown comes from the server every two seconds; panels are updated in place so a refresh never interrupts a click or typing.
+// The studio as a tool: say what you want on one page, watch how it is made, and get the files.
+// Left: every piece of work. Middle: 1 what was asked, 2 the record of how it went, 3 what came out.
+// Everything shown comes from the server every two seconds; parts are updated in place so a refresh never interrupts a click or typing.
 import { patch } from './dom-patch.js';
 import { createRefresher } from './live-refresh.js';
 import { esc, enc, api, pending, enter, setText, calm } from './ui/format.js';
-import { entries, needsYou, defaultStep } from './ui/model.js';
+import { entries, needsYou, flowOf, firstFile, fileKind } from './ui/model.js';
 import * as V from './ui/views.js';
+import { markdown } from './ui/markdown.js';
 import { createDialogs } from './ui/dialogs.js';
+import { createComposer } from './ui/compose.js';
 import { projectColour } from './office/stage.js';
 import { POSTS, postKey } from './office/roster.js';
 
-const VIEWS = ['office', 'tasks', 'discussion'];
+const VIEWS = ['work', 'office'], NEW = 'new';
 
 export async function mountWorkspace({ office, models }) {
   const root = document.createElement('main'); root.id = 'workspace'; document.body.prepend(root);
   root.innerHTML = `<header class="ws-top px"><h1>AI 工作室</h1>
-    <nav class="ws-views" aria-label="工作区视图"><button data-view="office" aria-pressed="true">办公室<kbd>1</kbd></button><button data-view="tasks" aria-pressed="false">分工与验收<kbd>2</kbd></button><button data-view="discussion" aria-pressed="false">项目讨论<kbd>3</kbd></button><i class="ws-ink" aria-hidden="true"></i></nav>
-    <span class="muted ws-spent" id="ws-status"></span><a class="btn" href="/company.html" target="_blank" rel="noopener">文件与记录 ↗</a><button class="btn primary" id="ws-create" title="快捷键 N">＋ 新工作</button></header>
-    <div id="ws-notice" role="status"></div><div class="ws-grid">
-    <div class="ws-main"><section class="ws-office" data-pane="office"></section>
-    <section class="ws-panel" id="ws-detail" data-pane="tasks" aria-label="分工与验收"></section>
-    <section class="ws-panel" id="ws-chat" data-pane="discussion" aria-label="项目讨论"><div id="ws-chat-heading"></div><button class="btn" id="ws-chat-older" hidden>查看更早的消息</button><div id="ws-messages" role="log" aria-live="polite" aria-label="员工讨论记录"></div><p id="ws-chat-running" class="muted"></p><form id="ws-chat-form"><textarea name="body" maxlength="6000" required aria-label="发给员工的消息" placeholder="补充要求或回答员工的问题。消息会进入员工的实际上下文，正在执行的调用结束后处理。"></textarea><div class="ws-send"><label><span>发给</span><select name="targetRole" aria-label="接收员工"></select></label><button class="btn primary" type="submit">发送</button></div><p class="form-error" role="alert"></p></form></section></div>
-    <div class="ws-side"><section class="ws-panel ws-inbox" id="ws-inbox" hidden><h2>等你处理 <span class="ws-count" id="ws-inbox-count"></span></h2><div id="ws-inbox-list" class="ws-tasks"></div></section>
-    <section class="ws-panel ws-list"><h2>工作</h2><div id="ws-tasks" class="ws-tasks"></div></section>
-    <aside class="ws-panel ws-team"><div class="ws-panel-head"><h2>员工</h2><button class="btn" data-hire>＋ 添加</button></div><div id="ws-team"></div></aside>
-    <p class="muted ws-foot"><span id="ws-version"></span> · 关闭页面任务也会继续 · <a href="/character-preview.html" target="_blank" rel="noopener">角色动作预览 ↗</a></p></div></div>
+    <nav class="ws-views" aria-label="视图"><button data-view="work" aria-pressed="true">工作台<kbd>1</kbd></button><button data-view="office" aria-pressed="false">办公室<kbd>2</kbd></button><i class="ws-ink" aria-hidden="true"></i></nav>
+    <span class="muted ws-spent" id="ws-status"></span><button class="btn" data-open-root title="打开保存成品的本机文件夹">成品文件夹</button><a class="btn" href="/company.html" target="_blank" rel="noopener">文件与记录 ↗</a></header>
+    <div id="ws-notice" role="status"></div>
+    <div class="ws-panes">
+    <div class="ws-body" data-pane="work">
+      <aside class="ws-rail"><button class="btn primary ws-new" data-new title="快捷键 N">＋ 新工作</button><div id="ws-rail"></div><p class="muted ws-foot"><span id="ws-version"></span> · 关掉页面，工作也会继续</p></aside>
+      <div class="ws-main">
+        <div id="ws-work" hidden>
+          <div id="ws-head" class="ws-panel"></div>
+          <div class="ws-cols">
+            <section class="ws-panel ws-process" aria-label="过程">
+              <h3 class="ws-num"><b aria-hidden="true">2</b>过程<small>谁做了什么、说了什么，按时间排列</small></h3>
+              <div id="ws-flow"></div><div id="ws-share"></div>
+              <div class="ws-filters" id="ws-filters" role="group" aria-label="筛选记录"></div>
+              <div id="ws-trail" role="log" aria-live="polite" aria-label="过程记录"></div>
+              <div id="ws-running"></div>
+              <form id="ws-say" hidden><textarea name="body" maxlength="6000" required rows="2" aria-label="给员工留言" placeholder="给员工留言：补充要求，或回答他们的问题。会进入员工下一次工作的材料。"></textarea>
+                <div class="ws-send"><label><span>发给</span><select name="targetRole" aria-label="接收员工"></select></label><button class="btn primary" type="submit">发送</button></div><p class="form-error" role="alert"></p></form>
+            </section>
+            <section class="ws-panel ws-result" aria-label="成品">
+              <h3 class="ws-num"><b aria-hidden="true">3</b>成品<small>做出来的文件，同时保存在本机</small></h3>
+              <div id="ws-accept"></div><div id="ws-out"></div><div id="ws-viewer" hidden></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="ws-officepane" data-pane="office"><section class="ws-office"></section>
+      <aside class="ws-panel ws-team"><div class="ws-panel-head"><h2>员工</h2><button class="btn" data-hire>＋ 添加</button></div><div id="ws-team"></div>
+        <p class="muted ws-foot">办公室只是现场画面，不影响工作和费用。<a href="/character-preview.html" target="_blank" rel="noopener">角色动作预览 ↗</a></p></aside></div>
+    </div>
     <dialog id="ws-dialog"></dialog>`;
   root.querySelector('.ws-office').append(office.el);
   const $ = s => root.querySelector(s);
 
-  let data, selected = null, view = 'office', lastDetail = '', lastTasks = '', lastTeam = '', dismissedNotice = false, noticeTimer = null, doneOpen = false;
-  const steps = new Map(), stars = new Map(), drafts = new Map(), openBoxes = new Set(), previews = new Map(), previewCache = new Map(), teamRows = new Map();
-  const chatCache = new Map(), chatDrafts = new Map(), sendIds = new Map();
-  let chatProject = null, chatLoading = false, lastChat = '', lastChatHeading = '';
+  let data, selected = null, view = 'work', detail = null, filter = 'all', doneOpen = false, recordOpen = false, noticeTimer = null;
+  let lastRail = '', lastHead = '', lastProcess = '', lastTrail = '', lastResult = '', lastTeam = '', shown = '', sayFor = null, trailFor = null;
+  const steps = new Map(), stars = new Map(), drafts = new Map(), openBoxes = new Set(), expanded = new Set(), fileOf = new Map(), asSource = new Set();
+  const sayDrafts = new Map(), sendIds = new Map(), teamRows = new Map();
 
-  const person = id => data.employees.find(e => e.id === id)?.name || id;
+  const person = id => data.employees.find(e => e.id === id)?.name || id || '未指定';
   const colourOf = entry => entry.p ? projectColour(entry.p.id) : '#a69fb8';
-  const viewOf = extra => ({ data, selected, person, colourOf, colour: office.colourOf, ...extra });
   const notice = (message, error = false) => {
     clearTimeout(noticeTimer);
     $('#ws-notice').innerHTML = `<div class="ws-notice${error ? ' ws-error' : ''}"><span>${esc(message)}</span><button class="link" data-dismiss aria-label="关闭提示">关闭</button></div>`;
@@ -50,141 +73,163 @@ export async function mountWorkspace({ office, models }) {
     }
   }
 
-  // ---------- switching between the three views ----------
+  // ---------- the two views ----------
   const pane = name => $(`[data-pane=${name}]`);
   function setView(next) {
-    next = VIEWS.includes(next) ? next : 'office';
+    next = VIEWS.includes(next) ? next : 'work';
     const before = view; view = next;
     const apply = () => {
       root.dataset.view = next;
       for (const b of root.querySelectorAll('.ws-views [data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === next));
       moveInk(); office.setActive(next === 'office');
     };
-    // the old page slides out and the new one in, in the direction of the tab that was chosen
     if (before !== next && root.dataset.view && document.startViewTransition && !calm.matches && !document.hidden) {
       root.dataset.dir = VIEWS.indexOf(next) > VIEWS.indexOf(before) ? 'forward' : 'back';
       document.startViewTransition(apply);
     } else { apply(); if (before !== next) enter(pane(next)); }
-    if (data && next === 'discussion') { renderChat(); refreshMessages(); }
-    if (next === 'discussion' && selected?.startsWith('p:')) history.replaceState(null, '', `#discussion/${selected.slice(2)}`);
-    else if (location.hash.startsWith('#discussion')) history.replaceState(null, '', location.pathname);
   }
-  // the marker under the view names slides to the chosen one
   function moveInk() {
     const button = root.querySelector('.ws-views [aria-pressed=true]'), ink = $('.ws-ink');
     ink.style.width = `${button.offsetWidth}px`; ink.style.transform = `translateX(${button.offsetLeft}px)`;
   }
   new ResizeObserver(moveInk).observe($('.ws-views'));
-  setView('office');
-  function select(id, nextView, step) {
-    const same = selected === id, was = view;
-    selected = id; lastDetail = '';
-    if (step != null && id?.startsWith('p:')) steps.set(id, Number(step));
-    if (nextView) setView(nextView);
-    render();
-    if (!same && was === view && view !== 'office') enter(pane(view), 3);
-  }
+  setView('work');
 
+  // ---------- choosing a piece of work ----------
+  function select(id, { step } = {}) {
+    const same = selected === id;
+    selected = id;
+    if (step !== undefined && id !== NEW) steps.set(id, step);
+    if (view !== 'work') setView('work');
+    // work that was created a moment ago is not in the data yet: the refresh below brings it
+    if (data && (id === NEW || entries(data).some(e => e.id === id))) render();
+    if (!same) { enter(id === NEW ? composer.el : $('#ws-work'), 4); if (id === NEW) composer.focus(); }
+    return refresh();
+  }
   // clicking someone in the office shows what they are on; someone who never worked opens their settings
   function openEmployee(id) {
     if (!data) return;
-    const discussing = data.projects.find(p => p.discussion?.some(t => t.employee === id && t.status === 'running'));
-    if (discussing) return select(`p:${discussing.id}`, 'discussion');
     const jobs = data.jobs.filter(j => j.employee === id);
+    const talking = data.projects.find(p => p.discussion?.some(t => t.employee === id && t.status === 'running'));
     const j = jobs.find(j => j.status === 'running') || jobs.find(j => j.status !== 'done') || jobs.at(-1);
-    if (j) select(j.project_id ? `p:${j.project_id}` : `o:${j.order_id}`, 'tasks', j.project_id ? j.role_idx : null);
+    if (talking) select(`p:${talking.id}`);
+    else if (j) select(j.project_id ? `p:${j.project_id}` : `o:${j.order_id}`, { step: j.project_id ? j.role_idx : 0 });
     else dialogs.employee(data.employees.find(e => e.id === id));
   }
   office.el.addEventListener('studio-employee', ev => openEmployee(ev.detail));
 
-  // ---------- project discussion ----------
-  function renderChat() {
-    const p = data.projects.find(p => selected === `p:${p.id}`), form = $('#ws-chat-form');
-    if (!p) {
-      $('#ws-chat-heading').innerHTML = '<h2>项目讨论</h2><p class="muted">选择一个项目，查看员工交流；新建自主协作任务后，真实发言会出现在这里。</p>';
-      form.hidden = true; $('#ws-messages').replaceChildren(); $('#ws-chat-running').textContent = ''; $('#ws-chat-older').hidden = true; chatProject = null; lastChat = ''; lastChatHeading = ''; return;
+  // ---------- 3 · one file shown in full ----------
+  function showFile(id, out) {
+    const viewer = $('#ws-viewer'), path = fileOf.get(id);
+    if (!out?.dir || !path) { viewer.hidden = true; shown = ''; return; }
+    const source = asSource.has(`${id}|${path}`), key = `${id}|${path}|${out.at}|${source}`;
+    if (key === shown) return;
+    shown = key; viewer.hidden = false;
+    const kind = fileKind(path), size = out.files.find(f => f.path === path)?.size;
+    const headHTML = extra => `<div class="ws-viewer-head"><b>${esc(path)}</b>${extra}</div>`;
+    if (kind === 'page' && data.previewBase && !source) {
+      const url = `${data.previewBase}/out/${enc(id)}/${path.split('/').map(enc).join('/')}`;
+      viewer.innerHTML = `${headHTML(`<span class="muted">页面预览。要用到后端的功能，需按 README 启动程序。</span><button class="btn" data-source>看源码</button><a class="btn" href="${esc(url)}" target="_blank" rel="noopener">在新页打开 ↗</a>`)}<iframe src="${esc(url)}" title="页面预览" sandbox="allow-scripts allow-forms"></iframe>`;
+      return;
     }
-    const changed = chatProject !== p.id;
-    if (changed) {
-      chatProject = p.id; lastChat = ''; lastChatHeading = ''; form.elements.body.value = chatDrafts.get(p.id) || '';
-      form.elements.targetRole.innerHTML = p.roles.map(r => `<option value="${r.idx}">${esc(person(r.who))} · ${esc(r.name)}</option>`).join('');
-    }
-    form.hidden = false;
-    const heading = V.chatHeading(viewOf(), p);
-    if (heading !== lastChatHeading) { patch($('#ws-chat-heading'), heading); lastChatHeading = heading; }
-    const cache = chatCache.get(p.id), messages = cache?.messages || [], signature = JSON.stringify(messages);
-    if (signature !== lastChat) {
-      const log = $('#ws-messages'), bottom = changed || log.scrollHeight - log.scrollTop - log.clientHeight < 70, v = viewOf();
-      patch(log, messages.length ? messages.map(m => V.message(v, m)).join('') : '<p class="ws-empty">这里还没有讨论记录。旧项目只保留原有交付，新建自主协作任务会从开工讨论开始记录。</p>');
-      fillAvatars(log);
-      if (bottom) log.scrollTop = log.scrollHeight; lastChat = signature;
-    }
-    $('#ws-chat-older').hidden = !cache?.hasOlder;
-    const running = (p.discussion || []).filter(t => t.status === 'running').map(t => person(t.employee));
-    setText($('#ws-chat-running'), running.length ? `${running.join('、')} 正在阅读项目材料并回复…` : p.status === 'paused' ? '项目已暂停。消息会保存，后续调用等待继续执行。' : '');
-  }
-  async function refreshMessages(older = false) {
-    if (chatLoading || view !== 'discussion' || !chatProject) return;
-    const pid = chatProject, cache = chatCache.get(pid); chatLoading = true;
-    try {
-      const query = older && cache?.messages.length ? `?before=${cache.messages[0].id}` : cache?.messages.length ? `?after=${cache.messages.at(-1).id}` : '';
-      const result = await api(`/api/workspace/projects/${pid}/messages${query}`);
-      const messages = [...new Map([...(cache?.messages || []), ...result.messages].map(m => [m.id, m])).values()].sort((a, b) => a.id - b.id);
-      chatCache.set(pid, { messages, hasOlder: older || !cache ? result.hasOlder : cache.hasOlder });
-      const log = $('#ws-messages'), height = log.scrollHeight, top = log.scrollTop;
-      if (chatProject === pid) { renderChat(); if (older) log.scrollTop = top + log.scrollHeight - height; }
-    } catch (e) { if (chatProject === pid) $('#ws-chat-running').textContent = `讨论记录读取失败：${e.message}`; } finally { chatLoading = false; }
+    viewer.innerHTML = `${headHTML(kind === 'page' ? '<button class="btn" data-source>看页面</button>' : '')}<p class="muted ws-viewer-wait">正在读取…</p>`;
+    api(`/api/workspace/works/${enc(id)}/file?${new URLSearchParams({ path })}`).then(f => {
+      if (shown !== key) return;
+      const body = f.large ? `<p class="muted">这个文件有 ${Math.round((f.size || size || 0) / 1024)} KB，太大了，请在文件夹里打开。</p>`
+        : f.binary ? '<p class="muted">这不是文本文件，请在文件夹里打开。</p>'
+        : kind === 'doc' ? `<div class="md">${markdown(f.content)}</div>` : `<pre>${esc(f.content)}</pre>`;
+      viewer.querySelector('.ws-viewer-wait').outerHTML = `<div class="ws-viewer-body">${body}</div>`;
+    }).catch(e => { if (shown === key) viewer.querySelector('.ws-viewer-wait').textContent = `读取失败：${e.message}`; });
   }
 
-  // ---------- everything else ----------
+  // ---------- drawing ----------
   function render() {
-    const all = entries(data), waiting = needsYou(data), open = all.filter(e => e.status !== 'done' && !waiting.has(e.id)), finished = all.filter(e => e.status === 'done');
-    if (!all.some(e => e.id === selected)) selected = (all.find(e => waiting.has(e.id)) || open[0] || finished[0])?.id || null;
+    const all = entries(data), waiting = needsYou(data);
+    if (selected !== NEW && !all.some(e => e.id === selected)) selected = (all.find(e => waiting.has(e.id)) || all.find(e => e.status !== 'done'))?.id || NEW;
     setText($('#ws-status'), `已花 ¥${data.spent.toFixed(2)}`);
     setText($('#ws-version'), `v${data.version}`);
     const title = waiting.size ? `(${waiting.size}) AI 工作室` : 'AI 工作室';
     if (document.title !== title) document.title = title;
-    if (!dismissedNotice && data.demoHidden) { notice(`已隐藏 ${data.demoHidden} 条旧演示订单，它们不会自动执行。原记录仍可在「文件与记录」查看。`); dismissedNotice = true; }
     office.setInbox(waiting.size);
 
-    // lists on the right: what waits for you first, then the rest, finished work folded away
-    const v = viewOf();
-    const inboxHTML = all.filter(e => waiting.has(e.id)).map(e => V.taskRow(v, e, waiting.get(e.id))).join('');
-    const taskHTML = (open.length ? open.map(e => V.taskRow(v, e)).join('') : `<p class="ws-empty">${all.length ? '没有进行中的工作。' : '还没有工作。<br>点右上角「＋ 新工作」开始。'}</p>`)
-      + (finished.length ? `<details id="ws-done"${doneOpen ? ' open' : ''}><summary>已完成（${finished.length}）</summary>${finished.map(e => V.taskRow(v, e)).join('')}</details>` : '');
-    $('#ws-inbox').hidden = !waiting.size; setText($('#ws-inbox-count'), String(waiting.size));
-    if (inboxHTML + taskHTML !== lastTasks) { patch($('#ws-inbox-list'), inboxHTML); patch($('#ws-tasks'), taskHTML); lastTasks = inboxHTML + taskHTML; }
+    const base = { data, selected, person, colourOf, colour: office.colourOf };
+    const railHTML = V.rail(base, all, waiting, doneOpen);
+    if (railHTML !== lastRail) { patch($('#ws-rail'), railHTML); lastRail = railHTML; }
+    $('.ws-new').setAttribute('aria-current', String(selected === NEW));
+    composer.el.hidden = selected !== NEW; $('#ws-work').hidden = selected === NEW;
+    composer.sync();
+    renderTeam();
+    if (selected === NEW) { office.focus([]); return; }
 
-    // the selected piece of work: its people are ringed in the office, its flow and acceptance fill the task view
-    const entry = all.find(e => e.id === selected), detail = $('#ws-detail'), need = waiting.get(entry?.id);
-    const jobs = entry ? data.jobs.filter(j => entry.p ? j.project_id === entry.p.id : j.order_id === entry.o.id) : [];
-    office.focus(entry && entry.status !== 'done' ? [...new Set([...jobs.map(j => j.employee), ...(entry.p?.roles.map(r => r.who) || [])])] : []);
-    renderChat();
-    const step = entry?.p ? (steps.has(entry.id) ? steps.get(entry.id) : defaultStep(entry.p, jobs)) : null;
-    const signature = JSON.stringify([entry, need, jobs, data.employees, step, stars.get(entry?.id)]);
-    if (signature !== lastDetail) {
-      lastDetail = signature;
-      const dv = viewOf({ step, stars: stars.get(entry?.id) });
-      patch(detail, !entry ? V.emptyPanel : entry.p ? V.projectPanel(dv, entry, need)
-        : V.orderPanel(dv, entry, need, data.employees.map(e => `<option value="${esc(e.id)}">${esc(e.name)} · ${esc(POSTS[postKey(e.profile?.post)].label)}</option>`).join('')));
-      fillAvatars(detail);
-      // what was being typed, which boxes were open and which previews were showing all survive the update
-      for (const f of detail.querySelectorAll('form[data-revise],form[data-reject]')) {
-        const key = f.dataset.revise || `reject:${f.dataset.reject}`, draft = drafts.get(key) || '';
-        if (f.elements.feedback.value !== draft) f.elements.feedback.value = draft;
-        f.closest('details').open = openBoxes.has(key);
+    const entry = all.find(e => e.id === selected), found = waiting.get(entry.id);
+    const jobs = data.jobs.filter(j => entry.p ? j.project_id === entry.p.id : j.order_id === entry.o.id);
+    // a single delivery has one share; what is wrong with it is always about that share
+    const need = found && { ...found, step: found.step ?? (entry.o && found.kind === 'fix' ? 0 : undefined) };
+    office.focus(entry.status !== 'done' ? [...new Set([...jobs.map(j => j.employee), ...(entry.p?.roles.map(r => r.who) || [])])] : []);
+    const mine = detail?.id === entry.id ? detail : null, out = mine?.outputs, flowing = flowOf(entry, jobs);
+    const step = steps.get(entry.id) ?? null, role = step != null ? flowing.p.roles.find(r => r.idx === step) : null;
+    if (out && (!fileOf.has(entry.id) || !out.files.some(f => f.path === fileOf.get(entry.id)))) fileOf.set(entry.id, firstFile(out));
+    const v = { ...base, step: role ? step : null, stars: stars.get(entry.id), filter, expanded, outputs: out, file: fileOf.get(entry.id), recordOpen };
+
+    // 1 · the request, and what waits for the boss
+    const headSig = JSON.stringify([entry, need, jobs.map(j => [j.id, j.status])]);
+    if (headSig !== lastHead) { lastHead = headSig; patch($('#ws-head'), V.head(v, entry, need, need?.kind === 'confirm' ? jobs.find(j => j.status === 'review' && j.role_idx === need.step) : null)); }
+
+    // 2 · who does what, then one share opened
+    const processSig = JSON.stringify([flowing, v.step, data.employees.map(e => [e.id, e.name])]);
+    if (processSig !== lastProcess) {
+      lastProcess = processSig;
+      patch($('#ws-flow'), V.flow(v, flowing.p, flowing.jobs));
+      patch($('#ws-share'), role ? V.share(v, role, flowing.jobs.find(j => j.role_idx === step), flowing.p, !entry.p) : '');
+      fillAvatars($('.ws-process'));
+      restoreForms($('#ws-share'));
+    }
+    // 2 · the record
+    const log = $('#ws-trail');
+    if (!mine) { if (trailFor !== `wait:${entry.id}`) { trailFor = `wait:${entry.id}`; lastTrail = ''; patch(log, '<p class="ws-empty">正在读取记录…</p>'); patch($('#ws-filters'), ''); patch($('#ws-running'), ''); } }
+    else {
+      const trailSig = JSON.stringify([mine.trail.entries, filter, v.step, [...expanded], out?.at]);
+      if (trailSig !== lastTrail) {
+        const fresh = trailFor !== entry.id, bottom = fresh || log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+        lastTrail = trailSig; trailFor = entry.id;
+        patch($('#ws-filters'), V.filters(v, mine.trail, role?.name));
+        patch(log, V.trail(v, mine.trail)); fillAvatars(log);
+        if (bottom) log.scrollTop = log.scrollHeight;
       }
-      for (const b of detail.querySelectorAll('[data-preview]')) {
-        const box = previews.get(`${b.dataset.preview}:${b.dataset.ref}`), home = b.closest('.ws-stepdetail,.ws-accept');
-        if (box && !home.contains(box)) home.append(box);
-      }
+      patch($('#ws-running'), V.running(v, mine.trail)); fillAvatars($('#ws-running'));
+    }
+    // 2 · a word to the people on it (projects only: a single delivery is sent back instead)
+    const say = $('#ws-say');
+    say.hidden = !entry.p;
+    if (entry.p && sayFor !== entry.id) {
+      sayFor = entry.id; say.elements.body.value = sayDrafts.get(entry.id) || ''; say.querySelector('.form-error').textContent = '';
+      say.elements.targetRole.innerHTML = entry.p.roles.map(r => `<option value="${r.idx}">${esc(person(r.who))} · ${esc(r.name)}</option>`).join('');
     }
 
-    // staff on the right; rows stay in place between updates, so portraits keep animating and a press on one is never lost
+    // 3 · the decision, then the files
+    const resultSig = JSON.stringify([entry.id, entry.status, need?.kind, jobs.map(j => [j.id, j.status, j.result?.artifacts]), stars.get(entry.id), out, v.file, recordOpen, !!mine]);
+    if (resultSig !== lastResult) {
+      lastResult = resultSig;
+      patch($('#ws-accept'), need?.kind !== 'accept' ? '' : entry.p ? V.acceptProject(v, entry.p, jobs) : V.acceptOrder(v, jobs.find(j => j.status === 'review') || jobs[0]));
+      restoreForms($('#ws-accept'));
+      patch($('#ws-out'), mine ? V.files(v, entry) : '<p class="ws-empty">正在读取成品…</p>');
+    }
+    showFile(entry.id, out);
+  }
+  // what was being typed and which boxes were open survive an update
+  function restoreForms(scope) {
+    for (const f of scope.querySelectorAll('form[data-revise],form[data-reject]')) {
+      const key = f.dataset.revise || `reject:${f.dataset.reject}`, draft = drafts.get(key) || '';
+      if (f.elements.feedback.value !== draft) f.elements.feedback.value = draft;
+      f.closest('details').open = openBoxes.has(key);
+    }
+  }
+  // staff beside the office; rows stay in place between updates, so portraits keep animating and a press on one is never lost
+  function renderTeam() {
     const talking = data.projects.flatMap(p => (p.discussion || []).filter(t => t.status === 'running'));
-    const teamSignature = JSON.stringify([data.employees, data.jobs.filter(j => j.status === 'running').map(j => j.employee), talking]);
-    if (teamSignature === lastTeam) return;
-    lastTeam = teamSignature;
+    const signature = JSON.stringify([data.employees, data.jobs.filter(j => j.status === 'running').map(j => j.employee), talking]);
+    if (signature === lastTeam) return;
+    lastTeam = signature;
     const team = $('#ws-team'); team.querySelector('.ws-empty')?.remove();
     for (const [id, row] of teamRows) if (!data.employees.some(e => e.id === id)) { row.remove(); teamRows.delete(id); }
     for (const e of data.employees) {
@@ -204,58 +249,74 @@ export async function mountWorkspace({ office, models }) {
     if (!data.employees.length) team.innerHTML = '<div class="ws-empty"><p>工作室还没有员工。</p><button class="btn primary" data-hire>添加第一位员工</button></div>';
   }
 
+  // ---------- loading ----------
   const refresher = createRefresher(async () => {
-    try { data = await api('/api/workspace'); office.sync(data); render(); await refreshMessages(); }
-    catch (e) { notice(`连接失败：${e.message}。页面不会重开任务。`, true); }
+    try {
+      data = await api('/api/workspace'); office.sync(data);
+      // decide what is selected before asking for its record
+      const all = entries(data), waiting = needsYou(data);
+      if (selected !== NEW && !all.some(e => e.id === selected)) selected = (all.find(e => waiting.has(e.id)) || all.find(e => e.status !== 'done'))?.id || NEW;
+      const id = selected;
+      if (id !== NEW) { const d = await api(`/api/workspace/works/${enc(id)}`); if (selected === id) detail = { id, ...d }; }
+      render();
+    } catch (e) { notice(`连接失败：${e.message}。页面不会重开任务。`, true); }
   });
-  const refresh = () => { lastDetail = ''; return refresher.now(); };
+  const refresh = () => refresher.now();
   async function action(button, fn, reload = true) {
     const done = pending(button);
     try { await fn(); if (reload) await refresh(); } catch (e) { notice(e.message, true); } finally { done(); }
   }
-  const dialogs = createDialogs({ root, office, refresh, notice, person, fillAvatars, data: () => data, setModels: m => { models = m; },
-    select: (id, nextView) => { selected = id; setView(nextView); } });
+  const dialogs = createDialogs({ root, office, refresh, notice, person, data: () => data, setModels: m => { models = m; } });
+  const composer = createComposer({ office, person, fillAvatars, data: () => data, hire: () => dialogs.employee(), select: id => select(id) });
+  $('.ws-main').prepend(composer.el);
   const employeeOfJob = id => data.jobs.find(j => j.id === id)?.employee;
+  const redraw = () => { lastHead = lastProcess = lastTrail = lastResult = ''; render(); };
 
   // ---------- clicks ----------
   root.addEventListener('click', ev => {
     const b = ev.target.closest('button'); if (!b) return;
     const d = b.dataset;
     if (d.dismiss !== undefined) $('#ws-notice').replaceChildren();
-    if (d.hire !== undefined) dialogs.employee();
-    if (d.newWork !== undefined || b.id === 'ws-create') dialogs.newWork();
+    if (d.hire !== undefined && !b.closest('#ws-compose')) dialogs.employee();
+    if (d.new !== undefined) select(NEW);
     if (d.person) openEmployee(d.person);
     if (d.employeeEdit) dialogs.employee(data.employees.find(e => e.id === d.employeeEdit));
     if (d.view) setView(d.view);
-    if (d.select) select(d.select, d.select.startsWith('o:') ? 'tasks' : d.go || (view === 'discussion' ? 'discussion' : 'tasks'), d.step);
-    else if (d.step !== undefined && selected) { steps.set(selected, Number(d.step)); lastDetail = ''; render(); enter($('.ws-stepdetail'), 3); }
+    if (d.select) select(d.select);
+    else if (d.step !== undefined && selected !== NEW) {
+      // pressing the open share again closes it
+      const idx = Number(d.step), opening = steps.get(selected) !== idx || b.closest('.ws-callout');
+      steps.set(selected, opening ? idx : null); redraw();
+      if (opening) { enter($('#ws-share'), 3); if (b.closest('.ws-callout')) { const box = $('#ws-share details'); if (box) { box.open = true; } $('#ws-share').scrollIntoView({ block: 'nearest', behavior: calm.matches ? 'auto' : 'smooth' }); } }
+    }
+    if (d.filter) { filter = d.filter; redraw(); }
+    if (d.expand) { expanded.has(d.expand) ? expanded.delete(d.expand) : expanded.add(d.expand); redraw(); }
+    if (d.call) dialogs.call(d.call);
+    if (d.file && selected !== NEW) {
+      fileOf.set(selected, d.file); if (d.file.startsWith('过程记录')) recordOpen = true;
+      redraw(); $('#ws-viewer').scrollIntoView({ block: 'nearest', behavior: calm.matches ? 'auto' : 'smooth' });
+    }
+    if (d.source !== undefined && selected !== NEW) { const key = `${selected}|${fileOf.get(selected)}`; asSource.has(key) ? asSource.delete(key) : asSource.add(key); render(); }
+    if (d.openFolder !== undefined) action(b, async () => { const r = await api(`/api/workspace/works/${enc(selected)}/open`, {}); notice(`已在文件管理器里打开：${r.dir}`); }, false);
+    if (d.openRoot !== undefined) action(b, async () => { const r = await api('/api/workspace/outputs/open', {}); notice(`已在文件管理器里打开：${r.dir}`); }, false);
+    if (d.copy) navigator.clipboard?.writeText(d.copy).then(() => notice('路径已复制'), () => notice(`复制失败，路径是：${d.copy}`, true)) ?? notice(`路径是：${d.copy}`);
+    if (d.reply !== undefined) { const box = $('#ws-say').elements.body; box.scrollIntoView({ block: 'center', behavior: calm.matches ? 'auto' : 'smooth' }); box.focus({ preventScroll: true }); }
     if (d.locate) { setView('office'); office.locate(d.locate); }
-    if (d.openChat) select(`p:${d.openChat}`, 'discussion');
-    if (d.openTask) select(`p:${d.openTask}`, 'tasks');
     if (d.retryDiscussion) action(b, () => api(`/api/workspace/discussions/${d.retryDiscussion}/retry`, {}));
     if (d.startProject) action(b, () => api(`/api/workspace/projects/${d.startProject}/start`, {}));
     if (d.pause) action(b, () => api(`/api/workspace/projects/${d.pause}/pause`, { paused: d.paused === 'true' }));
     if (d.approve) action(b, async () => { const who = employeeOfJob(d.approve); await api(`/api/workspace/jobs/${enc(d.approve)}/approve`, {}); office.signal('approve', who); });
     if (d.accept) action(b, () => api(`/api/projects/${d.accept}/review`, { stars: stars.get(`p:${d.accept}`) ?? 3 }));
-    if (d.preview) action(b, async () => {
-      const repo = d.preview, ref = d.ref, k = `${repo}:${ref}`;
-      let file = previewCache.get(k);
-      if (!file) { const files = await api('/api/git/tree?' + new URLSearchParams({ repo, ref })); file = files.find(f => f === 'web/index.html') || files.find(f => f === 'index.html') || files.find(f => f.endsWith('.html')); if (file) previewCache.set(k, file); }
-      if (!file) throw new Error('这份交付没有 HTML 页面；请在交付文档查看运行方法');
-      const url = `${data.previewBase}/${enc(repo)}/${enc(ref)}/${file.split('/').map(enc).join('/')}`;
-      const box = document.createElement('div'); box.className = 'ws-preview'; box.dataset.keep = '';
-      box.innerHTML = `<p class="muted">静态页面预览 · 后端服务需按 README 启动 · <a href="${esc(url)}" target="_blank" rel="noopener">在新页打开 ↗</a></p><iframe src="${esc(url)}" title="交付页面预览" sandbox="allow-scripts allow-forms"></iframe>`;
-      previews.set(k, box);
-      const home = b.closest('.ws-stepdetail,.ws-accept,.ws-message'); home.querySelector('.ws-preview')?.remove(); home.append(box); enter(box);
-    }, false);
   });
   root.addEventListener('change', ev => { const m = ev.target.name?.match(/^stars-(\d+)$/); if (m) stars.set(`p:${m[1]}`, Number(ev.target.value)); });
   root.addEventListener('input', ev => {
     const f = ev.target.closest('form[data-revise],form[data-reject]');
     if (f && ev.target.name === 'feedback') drafts.set(f.dataset.revise || `reject:${f.dataset.reject}`, ev.target.value);
+    if (ev.target.form?.id === 'ws-say' && sayFor) { sayDrafts.set(sayFor, ev.target.value); sendIds.delete(sayFor); }
   });
   root.addEventListener('toggle', ev => {
     if (ev.target.id === 'ws-done') doneOpen = ev.target.open;
+    if (ev.target.matches?.('[data-record]')) recordOpen = ev.target.open;
     const f = ev.target.matches?.('[data-revise-box],[data-reject-box]') && ev.target.querySelector('form');
     if (!f) return;
     const key = f.dataset.revise || `reject:${f.dataset.reject}`;
@@ -274,17 +335,18 @@ export async function mountWorkspace({ office, models }) {
       drafts.delete(key); openBoxes.delete(key); office.signal('revise', who);
     });
   });
-  $('#ws-chat-older').onclick = () => refreshMessages(true);
-  $('#ws-chat-form').elements.body.addEventListener('input', e => { if (chatProject) { chatDrafts.set(chatProject, e.target.value); sendIds.delete(chatProject); } });
-  $('#ws-chat-form').onsubmit = async ev => {
-    ev.preventDefault(); const form = ev.target, pid = chatProject; if (!pid) return;
-    const done = pending(form.querySelector('button')), body = form.elements.body.value, target = Number(form.elements.targetRole.value); form.querySelector('.form-error').textContent = '';
-    const clientId = sendIds.get(pid) || crypto.randomUUID(); sendIds.set(pid, clientId);
+  $('#ws-say').onsubmit = async ev => {
+    ev.preventDefault();
+    const form = ev.target, id = sayFor; if (!id) return;
+    const pid = Number(id.slice(2)), done = pending(form.querySelector('button')), body = form.elements.body.value, target = Number(form.elements.targetRole.value);
+    form.querySelector('.form-error').textContent = '';
+    const clientId = sendIds.get(id) || crypto.randomUUID(); sendIds.set(id, clientId);
     try {
       await api(`/api/workspace/projects/${pid}/messages`, { body, targetRole: target, clientId });
-      chatDrafts.delete(pid); sendIds.delete(pid); if (chatProject === pid && form.elements.body.value === body) form.elements.body.value = '';
+      sayDrafts.delete(id); sendIds.delete(id); if (sayFor === id && form.elements.body.value === body) form.elements.body.value = '';
       office.signal('message', data.projects.find(p => p.id === pid)?.roles.find(r => r.idx === target)?.who);
       await refresh();
+      const log = $('#ws-trail'); log.scrollTop = log.scrollHeight;
     } catch (e) { form.querySelector('.form-error').textContent = e.message; } finally { done(); }
   };
 
@@ -292,13 +354,12 @@ export async function mountWorkspace({ office, models }) {
   root.addEventListener('keydown', ev => { if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter' && ev.target.matches('textarea')) ev.target.form?.requestSubmit(); });
   document.addEventListener('keydown', ev => {
     if (ev.ctrlKey || ev.metaKey || ev.altKey || ev.target.closest?.('input,textarea,select,[contenteditable]') || $('#ws-dialog').open) return;
-    if (['1', '2', '3'].includes(ev.key)) setView(VIEWS[ev.key - 1]);
-    else if (ev.key.toLowerCase() === 'n') { ev.preventDefault(); dialogs.newWork(); }
+    if (['1', '2'].includes(ev.key)) setView(VIEWS[ev.key - 1]);
+    else if (ev.key.toLowerCase() === 'n') { ev.preventDefault(); select(NEW); }
   });
 
-  const discussionLink = location.hash.match(/^#discussion\/(\d+)$/);
-  if (discussionLink) { selected = `p:${discussionLink[1]}`; setView('discussion'); }
   await refresh();
+  if (selected === NEW) composer.focus();
   // no point refreshing a page nobody is looking at; coming back catches up at once
   const tick = () => { if (!document.hidden) refresher.poll(); };
   let timer = setInterval(tick, 2000);

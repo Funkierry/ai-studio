@@ -19,8 +19,10 @@ export function needsYou(data) {
     if (['done', 'paused'].includes(p.status)) continue;
     const id = `p:${p.id}`, jobs = data.jobs.filter(j => j.project_id === p.id);
     if (p.status === 'blocked') {
-      const talk = !!p.collaboration?.enabled;
-      add(id, talk ? 'answer' : 'fix', p.collaboration?.reason || jobs.find(j => j.error)?.error || '项目停住了，需要你看一下', talk ? { view: 'discussion' } : {});
+      // when a share is what broke, say which one, so the page can open it
+      const talk = !!p.collaboration?.enabled, broken = jobs.find(j => ['failed', 'interrupted'].includes(j.status));
+      add(id, talk ? 'answer' : 'fix', p.collaboration?.reason || jobs.find(j => j.error)?.error || '项目停住了，需要你看一下',
+        { ...(talk ? { view: 'discussion' } : {}), ...(broken ? { step: broken.role_idx } : {}) });
     }
     if (p.status === 'review') add(id, 'accept', '全部分工做完了，等你验收');
     for (const j of jobs) {
@@ -116,3 +118,62 @@ export const PLANS = {
   code: [[['developer', '代码开发']], [['tester', '测试验收']]],
   doc: [[['writer', '撰写文档']]],
 };
+
+// ---------- the record of how a piece of work went ----------
+export const TRAIL_KINDS = { ask: '要求', message: '留言', discussion: '讨论', question: '提问', revision: '要求修改', delivery: '交付', test_result: '执行结果',
+  failure: '没有完成', release: '验收发布', notice: '系统', approval: '确认', call: '模型调用' };
+export const TRAIL_FILTERS = [['all', '全部'], ['talk', '对话'], ['deliver', '交付'], ['mine', '我的决定']];
+const TALK = new Set(['ask', 'message', 'discussion', 'question']), DELIVER = new Set(['delivery', 'test_result', 'failure', 'release', 'call']);
+// step: only what belongs to one share of the work
+export function filterTrail(entries, filter = 'all', step = null) {
+  return entries.filter(e => (step == null || e.role === step)
+    && (filter === 'talk' ? TALK.has(e.kind) : filter === 'deliver' ? DELIVER.has(e.kind) : filter === 'mine' ? e.from === 'boss' : true));
+}
+export const isLong = text => String(text || '').length > 420 || String(text || '').split('\n').length > 7;
+
+// ---------- the files a piece of work produced ----------
+export const RECORD = '过程记录';
+export const fileKind = path => /\.md$/i.test(path) ? 'doc' : /\.html?$/i.test(path) ? 'page' : 'text';
+export const sizeText = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
+// folders in the order a person looks for them: the thing itself first, the record of how it was made last
+export function fileGroups(files) {
+  const groups = new Map();
+  for (const f of files) {
+    const cut = f.path.indexOf('/'), top = f.path === `${RECORD}.md` ? RECORD : cut < 0 ? '' : f.path.slice(0, cut);
+    if (!groups.has(top)) groups.set(top, []);
+    groups.get(top).push({ ...f, label: cut < 0 ? f.path : f.path.slice(cut + 1) });
+  }
+  const rank = name => name === '' ? 0 : name === '程序' ? 1 : name === '文档' ? 2 : name === RECORD ? 9 : 5;
+  return [...groups].map(([name, list]) => ({ name, files: list })).sort((a, b) => rank(a.name) - rank(b.name));
+}
+// what to show first: a single document, else the page that was built, else how to run it, else the latest document
+export function firstFile(outputs) {
+  const names = (outputs?.files || []).map(f => f.path);
+  return names.find(p => !p.includes('/') && p !== `${RECORD}.md`) || outputs?.page || names.find(p => p === '程序/README.md')
+    || names.filter(p => p.startsWith('文档/')).at(-1) || names[0] || null;
+}
+// the exported file behind something an employee handed in
+export function fileFor(outputs, artifact) {
+  const names = (outputs?.files || []).map(f => f.path);
+  if (artifact.type === 'doc') {
+    const base = String(artifact.path || '').split('/').at(-1);
+    return names.find(p => p.split('/').at(-1) === base) || names.find(p => !p.includes('/') && p !== `${RECORD}.md`) || null;
+  }
+  if (artifact.type === 'commit') return outputs?.page || names.find(p => p === '程序/README.md') || names.find(p => p.startsWith('程序/')) || null;
+  return null;
+}
+// a single delivery shown with the same flow as a project: one share, then the boss
+export function flowOf(entry, jobs) {
+  if (entry.p) return { p: entry.p, jobs };
+  const j = jobs[0], code = entry.o.spec?.deliverable?.kind === 'code';
+  return { p: { id: entry.o.id, single: true, status: entry.status === 'done' ? 'done' : j?.status === 'review' ? 'review' : 'running', tag: null,
+    roles: [{ idx: 0, name: code ? '编写代码' : '撰写文档', who: j?.employee, deps: [], status: j?.status || 'wait', artifacts: [] }] }, jobs: jobs.map(x => ({ ...x, role_idx: 0 })) };
+}
+// who does what, in one sentence, for the kind of work chosen
+export function planLine(kind, picks, person, autonomous = true) {
+  const name = k => person(picks[k]);
+  if (kind === 'doc') return `${name('writer')} 撰写，写好后你来验收。`;
+  if (kind === 'code') return `${name('developer')} 开发，${name('tester')} 测试，做完你来验收。`;
+  const team = [...new Set(['planner', 'backend', 'frontend', 'integrator'].map(name))].join('、');
+  return autonomous ? `${team} 先讨论再分工，测试失败自动返工（最多 2 轮），你可以随时留言或暂停。` : `${team} 接力完成，需求规划做完先给你确认。`;
+}

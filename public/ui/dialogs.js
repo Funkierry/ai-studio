@@ -1,13 +1,13 @@
-// The two windows the boss fills in: new work, and an employee's settings.
-// ctx: { root, data(), office, models(), setModels, refresh, notice, select(id, view), person(id) }
+// The windows that open over the page: one model call in full, and an employee's settings.
+// ctx: { root, data(), office, setModels, refresh, notice, person(id) }
 import { esc, enc, api, pending } from './format.js';
-import { defaultTeam, PLANS } from './model.js';
+import { markdown } from './markdown.js';
 import { POSTS, postKey } from '../office/roster.js';
-import { collaborationRoles, collaborationWorkorder } from '../collaboration-plan.js';
+
+const ACTIONS = { continue: '继续', question: '向同事提问', revise: '要求返工', ask_user: '请老板决定' };
 
 export function createDialogs(ctx) {
   const d = ctx.root.querySelector('#ws-dialog');
-  let workDraft = '';
 
   function open(html, submit, submitLabel = '开始', { then, onCancel } = {}) {
     d.innerHTML = `<form>${html}<p class="form-error" role="alert"></p><div class="ws-actions"><button class="btn primary" type="submit">${esc(submitLabel)}</button><button class="btn" type="button" data-close>取消</button></div></form>`;
@@ -24,69 +24,27 @@ export function createDialogs(ctx) {
   }
   const options = picked => ctx.data().employees.map(e => `<option value="${esc(e.id)}"${e.id === picked ? ' selected' : ''}>${esc(e.name)} · ${esc(POSTS[postKey(e.profile?.post)].label)}</option>`).join('');
 
-  // ---------- new work: say what you want, see who will do which part, start ----------
-  function newWork() {
-    const data = ctx.data();
-    if (!data) return;
-    if (!data.employees.length) { employee(null, newWork); ctx.notice('先添加一位员工，加好后就能写新工作。'); return; }
-    const picks = defaultTeam(data.employees), orderId = crypto.randomUUID();
-    open(`<h2>新工作</h2>
-      <label><span>要做什么、怎样算完成</span><textarea name="goal" required rows="5" placeholder="目标、功能、限制和验收标准"></textarea></label>
-      <fieldset class="ws-choices kinds"><legend>怎么做</legend>
-        <label class="ws-choice"><input type="radio" name="kind" value="team" checked><span><b>团队协作</b><small>讨论、分工、集成测试</small></span></label>
-        <label class="ws-choice"><input type="radio" name="kind" value="code"><span><b>小型代码</b><small>开发、测试、验收</small></span></label>
-        <label class="ws-choice"><input type="radio" name="kind" value="doc"><span><b>文档</b><small>撰写、验收</small></span></label>
-      </fieldset>
-      <div class="ws-plan"><p class="ws-plan-title">谁做哪一份 <small>可以直接换人</small></p><div class="ws-flow" data-plan></div><p class="muted" data-plan-note></p></div>
-      <details><summary>更多设置：标题、协作方式</summary>
-        <label><span>标题（留空时用需求的第一行）</span><input name="title" maxlength="80"></label>
-        <label class="ws-check" data-team><input type="checkbox" name="autonomous" checked><span>员工自主沟通、返工并验收</span></label>
-      </details>`, async f => {
-      const title = String(f.get('title') || '').trim() || String(f.get('goal')).trim().split('\n')[0].slice(0, 60), goal = f.get('goal'), kind = f.get('kind');
-      let selected;
-      if (kind === 'team') {
-        const autonomous = f.get('autonomous') === 'on';
-        const roles = collaborationRoles({ planner: picks.planner, backend: picks.backend, frontend: picks.frontend, tester: picks.integrator, autonomous });
-        const p = await api('/api/projects', { name: title, goal, roles, autonomous, workorder: collaborationWorkorder(title, goal, roles, data.employees) });
-        selected = `p:${p.id}`;
-      } else if (kind === 'code') {
-        const p = await api('/api/projects', { name: title, goal, roles: [
-          { name: '代码开发', who: picks.developer, deps: [], gate: false, out: '可运行代码与 README', desc: '按目标实现可运行代码，README 写清运行方法；把核心逻辑与 UI 分离，供后续 node:test 验证。' },
-          { name: '测试验收', who: picks.tester, deps: [0], gate: false, out: 'tests/ 下的自动化测试与测试报告', desc: '阅读上游实现，用 node:test 测试真实代码和关键流程，不要复制实现充当测试；不适用的后端要求无需添加。' }] });
-        selected = `p:${p.id}`;
-      } else {
-        await api('/api/orders', { id: orderId, title, brief: goal, source: 'custom', spec: { detail: goal, deliverable: { kind: 'doc' } } });
-        await api(`/api/workspace/orders/${enc(orderId)}/start`, { employee: picks.writer });
-        selected = `o:${orderId}`;
-      }
-      workDraft = '';
-      ctx.select(selected, kind === 'team' ? 'discussion' : 'tasks');
-    }, '开始', { onCancel: () => { workDraft = ''; } });
-    // Esc closes the window but keeps what was typed; only 取消 throws it away
-    const form = d.querySelector('form'), plan = d.querySelector('[data-plan]');
-    form.elements.goal.value = workDraft;
-    form.elements.goal.addEventListener('input', e => { workDraft = e.target.value; });
-    const showPlan = () => {
-      const kind = form.elements.kind.value, name = k => ctx.person(picks[k]);
-      // the same left-to-right flow the task page shows later, with a person to pick on every step
-      plan.innerHTML = PLANS[kind].map((column, i) => `${i ? '<i class="ws-arrow" aria-hidden="true"></i>' : ''}<div class="ws-stage">${column.map(([field, label]) =>
-        `<label class="ws-step pick" style="--c:${ctx.office.colourOf(picks[field])}"><span class="ws-avatar" data-fill="${esc(picks[field])}" data-size="28"></span><span class="ws-step-text"><b>${label}</b><select name="${field}" aria-label="${label}由谁负责">${options(picks[field])}</select></span></label>`).join('')}</div>`).join('')
-        + '<i class="ws-arrow" aria-hidden="true"></i><div class="ws-stage"><div class="ws-step final wait"><span class="ws-you" aria-hidden="true">你</span><span class="ws-step-text"><b>验收</b><small>做完后通知你</small></span></div></div>';
-      ctx.fillAvatars(plan);
-      d.querySelector('[data-team]').hidden = kind !== 'team';
-      const team = [...new Set(['planner', 'backend', 'frontend', 'integrator'].map(name))].join('、');
-      d.querySelector('[data-plan-note]').textContent = kind === 'doc' ? `${name('writer')} 撰写，写好后你来验收。`
-        : kind === 'code' ? `${name('developer')} 开发，${name('tester')} 测试，做完你来验收。`
-        : form.elements.autonomous.checked ? `${team} 先讨论再分工，测试失败自动返工（最多 2 轮）。你可以随时插话或暂停。` : `${team} 接力完成，需求规划做完先给你确认。`;
-    };
-    // rebuilt only when the kind of work, the way of working or a person changes; never while the request is being typed
-    form.addEventListener('change', ev => {
-      const name = ev.target.name;
-      if (name in picks) picks[name] = ev.target.value; else if (name !== 'kind' && name !== 'autonomous') return;
-      showPlan();
-    });
-    showPlan();
-    form.elements.goal.focus();
+  // ---------- one model call in full: what the employee was given on the left, what came back on the right ----------
+  async function call(id) {
+    const shell = body => `<div class="ws-call"><div class="ws-call-head"><h2 data-title>模型调用 #${Number(id)}</h2><button class="btn" type="button" data-close>关闭</button></div>${body}</div>`;
+    d.innerHTML = shell('<p class="muted">正在读取…</p>');
+    const closable = () => { d.querySelector('[data-close]').onclick = () => d.close(); };
+    closable(); d.showModal();
+    try {
+      const c = await api(`/api/workspace/calls/${Number(id)}`), r = c.reply || {};
+      const state = c.status === 'done' ? '已完成' : c.status === 'running' ? '还在执行' : '没有完成';
+      const reply = c.status === 'running' ? '<p class="muted">还在执行，回复回来后会显示在这里。</p>'
+        : c.status !== 'done' ? `<p class="ws-error">${esc(c.error || '没有拿到回复')}</p>`
+        : [r.summary && `<p class="ws-summary"><b>摘要</b>　${esc(r.summary)}</p>`, r.text && `<div class="md">${markdown(r.text)}</div>`,
+          r.action && `<p class="muted">选择的行动：${esc(ACTIONS[r.action] || r.action)}${r.target_roles?.length ? `（指向第 ${r.target_roles.map(i => i + 1).join('、')} 份分工）` : ''}</p>`,
+          r.files?.length && `<p><b>写出的文件</b></p><ul>${r.files.map(f => `<li><code>${esc(f)}</code></li>`).join('')}</ul><p class="muted">文件内容在「成品」里看。</p>`,
+          r.open_questions?.length && `<p><b>待你确认</b></p><ul>${r.open_questions.map(q => `<li>${esc(q)}</li>`).join('')}</ul>`].filter(Boolean).join('') || '<p class="muted">回复里没有内容。</p>';
+      d.innerHTML = shell(`<p class="muted">${[state, c.model && esc(c.model), c.ms != null && `用时 ${Math.round(c.ms / 1000)} 秒`, c.tokens ? `${c.tokens.toLocaleString()} token` : '', c.cost != null && `¥${Number(c.cost).toFixed(2)}`, c.attempt > 1 && `第 ${c.attempt} 次`].filter(Boolean).join(' · ')}</p>
+        <div class="ws-call-cols"><section><h3>交给 TA 的任务书<small>${c.prompt.length.toLocaleString()} 字</small></h3><pre>${esc(c.prompt)}</pre></section>
+        <section><h3>TA 的回复</h3><div class="ws-call-reply">${reply}</div></section></div>`);
+      d.querySelector('[data-title]').textContent = `${ctx.person(c.employee)} · ${c.title || '模型调用'}`;
+      closable();
+    } catch (e) { d.innerHTML = shell(`<p class="ws-error">${esc(e.message)}</p>`); closable(); }
   }
 
   // ---------- an employee: name, post, speciality, and which tool or model writes for them ----------
@@ -138,5 +96,5 @@ export function createDialogs(ctx) {
       select.onchange = showProvider; showMode();
     } catch (e) { ctx.notice(e.message, true); }
   }
-  return { newWork, employee };
+  return { call, employee };
 }

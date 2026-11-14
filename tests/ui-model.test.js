@@ -65,26 +65,3 @@ test('the default team puts people on the post they hold and avoids giving one p
   const solo=defaultTeam([e('only','general')]);
   assert.ok(Object.values(solo).every(id=>id==='only'));
 });
-
-test('the task page shows the flow, the acceptance panel only when it is time, and never trusts text as HTML',async()=>{
-  const V=await viewsModule;
-  const view={data:null,selected:'p:1',person:id=>`员工${id.slice(1)}`,colourOf:()=>'#f2b544',colour:()=>'#6ea8ff',step:1};
-  const running=project({name:'<img src=x onerror=alert(1)>',goal:'<script>alert(1)</script>'}),jobs=[job(0,'done'),job(1,'running',{started_at:'2026-11-13 10:00:00'})];
-  view.data=snapshot(running,jobs);
-  const html=V.projectPanel(view,{id:'p:1',status:'running',p:running},undefined);
-  assert.ok(!html.includes('<script>')&&!html.includes('<img src=x'));
-  assert.equal((html.match(/class="ws-stage"/g)||[]).length,4); // three columns of shares and the boss's own step
-  assert.equal((html.match(/data-step="/g)||[]).length,4);
-  assert.match(html,/data-step="1" aria-pressed="true"/);
-  assert.ok(!html.includes('ws-accept'));
-  const finished=project({status:'review',roles:roles([],[0]).map(r=>({...r,status:'done'}))});
-  view.data=snapshot(finished,[job(0,'done'),job(1,'done',{result:{artifacts:[{type:'test',pass:5,fail:0}]}})]);
-  const review=V.projectPanel(view,{id:'p:1',status:'review',p:finished},{kind:'accept',why:'等你验收',view:'tasks'});
-  assert.match(review,/data-accept="1"/);assert.match(review,/data-reject="p:1"/);assert.match(review,/通过 5 · 失败 0/);
-  assert.equal((review.match(/name="stars-1"/g)||[]).length,3);
-  // a single delivery is accepted or sent back as a whole
-  const order={id:'x',title:'周报',brief:'写周报',spec:{}},oj={id:'o:x',order_id:'x',employee:'e0',status:'review',attempt:1,result:{summary:'写好了'}};
-  view.data=snapshot(null,[oj],[order]);
-  const single=V.orderPanel(view,{id:'o:x',status:'review',o:order},{kind:'accept'},'');
-  assert.match(single,/data-approve="o:x"/);assert.match(single,/data-reject="o:x"/);assert.ok(!single.includes('data-revise='));
-});

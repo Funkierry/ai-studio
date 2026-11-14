@@ -15,12 +15,17 @@ const arg = name => { const i = process.argv.indexOf(`--${name}`); return i > 0 
 const PORT = +(arg('port') || process.env.PORT) || 5300;
 const DATA = path.resolve(arg('data') || process.env.STUDIO_DATA || path.join(__dirname, 'data'));
 const PUBLIC = path.join(__dirname, 'public');
+// finished work is also saved as plain files here, one folder per piece of work
+const OUT = path.resolve(arg('out') || process.env.STUDIO_OUT || (DATA === path.join(__dirname, 'data') ? path.join(__dirname, '成品') : path.join(DATA, '成品')));
 const co = createCompany(DATA);
 const { createExecution } = require('./lib/execution');
 const { createPreview } = require('./lib/preview');
-const execution = createExecution(co);
+const trail = require('./lib/trail').createTrail(co);
+const outputs = require('./lib/outputs').createOutputs(co, OUT, { trail });
+const saveOutputs = work => { try { outputs.sync(work); } catch (error) { console.error(`成品导出失败 ${work}：${error.message}`); } };
+const execution = createExecution(co, { onChange: saveOutputs });
 const history = require('./lib/chat-history').createChatHistory(co.executionStore);
-const preview = createPreview(co);
+const preview = createPreview(co, outputs);
 execution.kick();
 
 const routes = [];
@@ -33,7 +38,13 @@ on('GET', '/api/models', () => co.models());
 on('GET', '/api/collaboration/filters', () => history.filters());
 on('GET', '/api/collaboration/messages', (b,p,q) => history.search(Object.fromEntries(q)));
 on('GET', '/api/collaboration/messages/:id/context', (b,p) => history.context(p.id));
-on('GET', '/api/workspace', () => ({ ...execution.snapshot(), previewBase: preview.url(), version: require('./package.json').version }));
+on('GET', '/api/workspace', () => ({ ...execution.snapshot(), previewBase: preview.url(), outRoot: OUT, version: require('./package.json').version }));
+// one piece of work in full: the record of how it went, and the files it has produced so far
+on('GET', '/api/workspace/works/:id', (b, p) => ({ trail: trail.of(p.id), outputs: outputs.list(p.id) }));
+on('GET', '/api/workspace/works/:id/file', (b, p, q) => outputs.read(p.id, q.get('path')));
+on('POST', '/api/workspace/works/:id/open', (b, p) => outputs.open(p.id));
+on('POST', '/api/workspace/outputs/open', () => outputs.open());
+on('GET', '/api/workspace/calls/:id', (b, p) => trail.call(p.id));
 on('GET', '/api/workspace/projects/:id/messages', (b,p,q) => execution.messages(+p.id, {after:Math.max(0,Number(q.get('after'))||0),before:Math.max(0,Number(q.get('before'))||0)}));
 on('POST', '/api/workspace/projects/:id/messages', (b,p) => execution.postMessage(+p.id,b));
 on('POST', '/api/workspace/discussions/:id/retry', (b,p) => execution.retryDiscussion(+p.id));
@@ -62,7 +73,7 @@ on('POST', '/api/meetings', legacy);
 on('POST', '/api/projects', b => { const p = co.launchProject(b); execution.createJobs(p.id); return p; });
 on('POST', '/api/projects/:id/roles/:idx/start', legacy);
 on('POST', '/api/projects/:id/roles/:idx/done', legacy);
-on('POST', '/api/projects/:id/review', (b, p) => co.projectReview(+p.id, b));
+on('POST', '/api/projects/:id/review', (b, p) => execution.review(+p.id, b));
 
 on('GET', '/api/git/repos', () => co.git.repos());
 on('GET', '/api/git/log', (b, p, q) => co.git.log(q.get('repo'), q.get('ref') || 'main'));
@@ -117,5 +128,8 @@ http.createServer(async (req, res) => {
 }).listen(PORT, '127.0.0.1', () => {
   console.log(`AI 工作室已启动：http://localhost:${PORT}`);
   console.log(`公司数据目录：${DATA}`);
+  console.log(`成品保存目录：${OUT}`);
+  // work finished before this version, or while the studio was closed, gets its folder too
+  setImmediate(() => outputs.syncAll());
   require('./lib/providers/cli').warm();
 });
