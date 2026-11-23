@@ -5,19 +5,25 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>DeepSeek 娘 · 像素动作预览</title>
 <style>
-:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#1b1824;color:#eee8f5}
-*{box-sizing:border-box}body{margin:0;padding:40px 20px}main{max-width:1040px;margin:auto}
-header{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:28px}
-h1{font-size:26px;margin:0 0 12px}p{color:#b3aabe;line-height:1.7;margin:0}
-a{color:#f2b544;text-decoration:none}a:hover{text-decoration:underline}
+:root{color-scheme:dark;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:#13111c;color:#f1eef8}
+*{box-sizing:border-box}
+body{margin:0;padding:40px 20px;min-height:100vh;background:radial-gradient(840px 440px at 18% -8%,rgba(196,165,238,.1),transparent 65%),radial-gradient(720px 380px at 85% -4%,rgba(244,185,66,.08),transparent 62%),#13111c}
+main{max-width:1040px;margin:auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:28px;padding:16px 22px;background:#1c1929;border:1px solid #383250;border-radius:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.045),0 8px 24px rgba(6,5,12,.34)}
+h1{font-size:24px;margin:0 0 6px}p{color:#a098b8;line-height:1.65;margin:0}
+a{display:inline-flex;align-items:center;padding:7px 14px;border-radius:8px;background:#252136;border:1px solid #383250;color:#f1eef8;text-decoration:none;font-size:13.5px;transition:background-color .14s,border-color .14s}
+a:hover{background:#2f2a44;border-color:#514970}
 .gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
-article{background:#272233;border:1px solid #484057;border-radius:16px;padding:24px;text-align:center}
-h2{font-size:18px;margin:0 0 4px}article p{font-size:13px}
-canvas{display:block;width:240px;height:264px;max-width:100%;object-fit:contain;image-rendering:pixelated;margin:20px auto 8px}
-footer{display:flex;gap:18px;align-items:center;justify-content:center;margin-top:28px}
-button{font:inherit;background:#f2b544;color:#241b13;border:0;border-radius:8px;padding:10px 22px;cursor:pointer}
-button:focus-visible,a:focus-visible{outline:3px solid #8ec5ff;outline-offset:4px}
-#status{font-size:13px;color:#b3aabe}
+article{background:#1c1929;border:1px solid #383250;border-radius:16px;padding:24px;text-align:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.045),0 8px 24px rgba(6,5,12,.3);transition:border-color .14s,transform .14s}
+article:hover{border-color:#514970;transform:translateY(-2px)}
+h2{font-size:17px;margin:0 0 4px}article p{font-size:13px}
+canvas{display:block;width:240px;height:264px;max-width:100%;object-fit:contain;image-rendering:pixelated;margin:20px auto 8px;border-radius:10px;background:#13111c;border:1px solid #383250}
+footer{display:flex;gap:16px;align-items:center;justify-content:center;margin-top:28px}
+button{font:inherit;font-weight:600;background:linear-gradient(180deg,#f7c557 0%,#ebb035 100%);color:#18130a;border:1px solid #f8cd6c;border-radius:8px;padding:9px 22px;cursor:pointer;box-shadow:0 4px 14px rgba(244,185,66,.24)}
+button:hover:not(:disabled){filter:brightness(1.05)}
+button:disabled{opacity:.5;cursor:not-allowed}
+button:focus-visible,a:focus-visible{outline:2px solid #f4b942;outline-offset:3px}
+#status{font-size:13px;color:#a098b8}
 @media(max-width:720px){.gallery{grid-template-columns:1fr}body{padding:24px 16px}}
 </style>
 </head>

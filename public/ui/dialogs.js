@@ -8,6 +8,7 @@ const ACTIONS = { continue: '继续', question: '向同事提问', revise: '要�
 
 export function createDialogs(ctx) {
   const d = ctx.root.querySelector('#ws-dialog');
+  d.addEventListener('click', ev => { if (ev.target === d) d.close(); });
 
   function open(html, submit, submitLabel = '开始', { then, onCancel } = {}) {
     d.innerHTML = `<form>${html}<p class="form-error" role="alert"></p><div class="ws-actions"><button class="btn primary" type="submit">${esc(submitLabel)}</button><button class="btn" type="button" data-close>取消</button></div></form>`;
@@ -40,9 +41,10 @@ export function createDialogs(ctx) {
           r.files?.length && `<p><b>写出的文件</b></p><ul>${r.files.map(f => `<li><code>${esc(f)}</code></li>`).join('')}</ul><p class="muted">文件内容在「成品」里看。</p>`,
           r.open_questions?.length && `<p><b>待你确认</b></p><ul>${r.open_questions.map(q => `<li>${esc(q)}</li>`).join('')}</ul>`].filter(Boolean).join('') || '<p class="muted">回复里没有内容。</p>';
       d.innerHTML = shell(`<p class="muted">${[state, c.model && esc(c.model), c.ms != null && `用时 ${Math.round(c.ms / 1000)} 秒`, c.tokens ? `${c.tokens.toLocaleString()} token` : '', c.cost != null && `¥${Number(c.cost).toFixed(2)}`, c.attempt > 1 && `第 ${c.attempt} 次`].filter(Boolean).join(' · ')}</p>
-        <div class="ws-call-cols"><section><h3>交给 TA 的任务书<small>${c.prompt.length.toLocaleString()} 字</small></h3><pre>${esc(c.prompt)}</pre></section>
+        <div class="ws-call-cols"><section><h3>交给 TA 的任务书<small>${c.prompt.length.toLocaleString()} 字</small><button class="btn" type="button" data-copy-prompt style="margin-left:auto;padding:2px 9px;font-size:12px">复制</button></h3><pre>${esc(c.prompt)}</pre></section>
         <section><h3>TA 的回复</h3><div class="ws-call-reply">${reply}</div></section></div>`);
       d.querySelector('[data-title]').textContent = `${ctx.person(c.employee)} · ${c.title || '模型调用'}`;
+      d.querySelector('[data-copy-prompt]').onclick = () => navigator.clipboard?.writeText(c.prompt).then(() => ctx.notice('任务书已复制'), () => ctx.notice('复制失败', true));
       closable();
     } catch (e) { d.innerHTML = shell(`<p class="ws-error">${esc(e.message)}</p>`); closable(); }
   }
